@@ -10,7 +10,7 @@ solve_task(Task,Cost) :-
 
 solve_task_astar(Task, [[_, Pos|Path]|_],_, RPath) :-
 	achieved(Task, Pos),
-	reverse([Pos|Path], [_|RPath]).
+	reverse([Pos|Path], [_|[_|RPath]]).
 
 solve_task_astar(Task, [[F, Pos|Path]|Rest], Visited, Solution) :-
 	findall([F1, NewPos, Pos|Path], (
