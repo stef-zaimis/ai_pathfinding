@@ -2,8 +2,10 @@
 solve_task(Task,Cost) :-
     my_agent(A), get_agent_position(A,P),
     %solve_task_dfs(Task,[P],[P|Path]), !,
-    %solve_task_bfs(Task, [[P]], [], Path),
+    solve_task_bfs(Task, [[P]], [], Pathbfs),
     solve_task_astar(Task, [[0, P, []]], [], Path),
+    format("A* Path: ~w~n", [Path]),
+    format("BFS Path: ~w~n", [Pathbfs]),
     agent_do_moves(A,Path), length(Path,Cost).
 
 solve_task_astar(Task, [[_, Pos|Path]|_],_, RPath) :-
@@ -13,7 +15,7 @@ solve_task_astar(Task, [[_, Pos|Path]|_],_, RPath) :-
 solve_task_astar(Task, [[F, Pos|Path]|Rest], Visited, Solution) :-
 	findall([F1, NewPos, Pos|Path], (
 		map_adjacent(Pos, NewPos, empty), \+ member(NewPos, Visited), \+ member([_, NewPos|_], Rest),
-		length([NewPos, Pos|Path], G), F1 is G+0,
+		length([NewPos, Pos|Path], G), F1 is G+0
 	), Children),
 	append(Rest, Children, N),
 	sort(N, S),
