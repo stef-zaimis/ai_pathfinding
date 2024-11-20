@@ -3,25 +3,21 @@ solve_task(Task,Cost) :-
     my_agent(A), get_agent_position(A,P),
     %solve_task_dfs(Task,[P],[P|Path]), !,
     %solve_task_bfs(Task, [[P]], [], Path),
-    solve_task_astar(Task, [[0, 0, P, []]], [], Path),
+    solve_task_astar(Task, [[0, P, []]], [], Path),
     agent_do_moves(A,Path), length(Path,Cost).
 
-solve_task_astar(Task, [[_,_, Pos, Path]|_],_, RPath) :-
+solve_task_astar(Task, [[_, Pos|Path]|_],_, RPath) :-
 	achieved(Task, Pos),
-	reverse(Path, RPath).
+	reverse([Pos|Path], [_|RPath]).
 
-solve_task_astar(Task, [[_, G, Pos,Path]|Rest], Visited, RPath) :-
-	\+ member(Pos, Visited),
-	findall([F, G1, NewPos, [Pos|Path]], (map_adjacent(Pos, NewPos, empty), \+ member(NewPos, Visited),
-		G1 is G+1, heuristic(Task, NewPos, H), F is G1+H), Children),
+solve_task_astar(Task, [[F, Pos|Path]|Rest], Visited, Solution) :-
+	findall([F1, NewPos, Pos|Path], (
+		map_adjacent(Pos, NewPos, empty), \+ member(NewPos, Visited), \+ member([_, NewPos|_], Rest),
+		length([NewPos, Pos|Path], G), F1 is G+0,
+	), Children),
 	append(Rest, Children, N),
 	sort(N, S),
-	solve_task_astar(Task, S, [Pos|Visited], RPath).
-
-heuristic(go(TargetPos), Pos, H) :-
-	map_distance(Pos, TargetPos, H).
-
-heuristic(find(_), _, 0).
+	solve_task_astar(Task, S, [Pos|Visited], Solution).
 
 % Calculate the path required to achieve a Task
 solve_task_dfs(Task,[P|Ps],Path) :-
