@@ -10,7 +10,7 @@ solve_task_astar(Task, [[_, Pos|Path]|_],_, RPath) :-
 	achieved(Task, Pos),
 	reverse([Pos|Path], [_|[_|RPath]]).
 
-solve_task_astar(Task, [[F, Pos|Path]|Rest], Visited, Solution) :-
+solve_task_astar(Task, [[_, Pos|Path]|Rest], Visited, Solution) :-
 	findall([F1, NewPos, Pos|Path], (
 		map_adjacent(Pos, NewPos, empty), \+ member(NewPos, Visited), \+ member([_, NewPos|_], Rest),
 		length([NewPos, Pos|Path], G), heuristic(Task, NewPos, H), F1 is G+H
