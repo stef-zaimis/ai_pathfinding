@@ -29,8 +29,21 @@ pathfinding_phase(Agents) :-
 find_moves([],[]).
 find_moves([A|As],[M|Moves]) :-
     findall(P,agent_adjacent(A,P,_),PosMoves),
-    random_member(M,PosMoves),
+    categorise_positions(PosMoves, Unknown, Empty, Dead, Walls),
+    (
+	Unknown /= [] -> MovesList=Unknown ;
+	Empty /= [] -> MovesList = Empty ;
+	Dead /= [] -> MovesList = Dead ;
+	MovesList = Walls
+    ),
+    random_member(M,MovesList),
     find_moves(As,Moves).
+
+categorise_positions([], [], [], [], []).
+categorise_positions([Pos|Rest], [Pos|Unknown], Empty, Dead, Walls) :- \+ known_maze(Pos, _), categorise_positions(Rest, Unknown, Empty, Dead, Walls).
+categorise_positions([Pos|Rest], Unknown, [Pos|Empty], Dead, Walls) :- known_maze(Pos, empty), categorise_positions(Rest, Unknown, Empty, Dead, Walls).
+categorise_positions([Pos|Rest], Unknown, Empty, [Pos|Dead], Walls) :- known_maze(Pos, dead), categorise_positions(Rest, Unknown, Empty, Dead, Walls).
+categorise_positions([Pos|Rest], Unknown, Empty, Dead, [Pos|Walls]) :- known_maze(Pos, wall), categorise_positions(Rest, Unknown, Empty, Dead, Walls).
 
 get_agent_positions([], []).
 get_agent_positions([A|As], [Pos|Rest]) :-
