@@ -7,17 +7,13 @@ solve_maze :-
     exploration_phase(Agents, AgentStates, 0),
     pathfinding_phase(Agents, AgentStates).
 
-exploration_phase(_, _, 1) :- format("Exploration phase completed. Exit found.~n").
+exploration_phase(_, _, 1). 
 exploration_phase(Agents, AgentStates, End) :-
-    format("Current Agent States: ~w~n", [AgentStates]),
     find_moves(Agents, AgentStates, Moves),
-    format("Moves chosen: ~w~n", [Moves]),
     agents_do_moves(Agents, Moves),
-    format("we're here ~n"),
     update_agent_positions(Agents, Moves, AgentStates, NewAgentStates),
-    check_end(Agents, End),
-    format("End Condition: ~w~n", [End]),
-    exploration_phase(Agents, NewAgentStates, End).
+    check_end(Agents, NewAgentStates, NextAgents, NextAgentStates, End),
+    exploration_phase(NextAgents, NextAgentStates, End).
 
 pathfinding_phase(Agents) :-
     format("Pathfinding Phase started.~n"),
@@ -32,10 +28,7 @@ find_moves([], _, []).
 find_moves([A|As], AgentStates, [M|Moves]) :-
     member((A, PrevPos), AgentStates),
     findall(P,agent_adjacent(A,P,_),PosMoves),
-    get_agent_position(A, Pos), format("Categorising moves for agent ~w, of position ~w where  ~n", [A, Pos]),
     categorise_positions(A, PrevPos, PosMoves, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls),
-    format("Agent ~w: PosMoves: ~w~n", [A, PosMoves]),
-    format("GlobalUnexplored: ~w, LocalUnexplored: ~w, Empty: ~w, Dead: ~w, Walls: ~w~n", [GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls]),
     (
 	GlobalUnexplored \= [] -> MovesList = GlobalUnexplored ;
 	LocalUnexplored \= [] -> MovesList = LocalUnexplored ;
@@ -44,15 +37,14 @@ find_moves([A|As], AgentStates, [M|Moves]) :-
 	MovesList = Walls
     ),
     random_member(M,MovesList),
-    format("Agent ~w chose move: ~w~n", [A, M]),
     find_moves(As,AgentStates, Moves).
 
 categorise_positions(_, _, [], [], [], [], [], []).
-categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, Empty, [Pos|Dead], Walls) :- lookup_pos(Pos,O), format("Object is of type ~w ", O), (known_maze(Pos, I) ; dead(Pos, I)), format(" and internally stored as ~w", I), dead(Pos, A), format(" categorised as ~w ~n", dead), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
-categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, Empty, Dead, [Pos|Walls]) :- known_maze(Pos, wall), format(" categorised as ~w ~n", wall), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
-categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, [Pos|Empty], Dead, Walls) :- known_maze(Pos, empty), member(Pos, PrevPos), format(" categorised as ~w ~n", empty), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
-categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, [Pos|LocalUnexplored], [Pos|Empty], Dead, Walls) :- known_maze(Pos, empty), \+ member(Pos, PrevPos), format(" categorised as ~w ~n", empty), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
-categorise_positions(A, PrevPos, [Pos|Rest], [Pos|GlobalUnexplored], LocalUnexplored, Empty, Dead, Walls) :- \+ known_maze(Pos, _), format(" categorised as ~w ~n", unexplored), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
+categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, Empty, [Pos|Dead], Walls) :- dead(Pos, A), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
+categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, Empty, Dead, [Pos|Walls]) :- known_maze(Pos, wall), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
+categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, [Pos|Empty], Dead, Walls) :- known_maze(Pos, empty), member(Pos, PrevPos), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
+categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, [Pos|LocalUnexplored], [Pos|Empty], Dead, Walls) :- known_maze(Pos, empty), \+ member(Pos, PrevPos), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
+categorise_positions(A, PrevPos, [Pos|Rest], [Pos|GlobalUnexplored], LocalUnexplored, Empty, Dead, Walls) :- \+ known_maze(Pos, _), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
 
 get_agent_positions([], []).
 get_agent_positions([A|As], [Pos|Rest]) :-
@@ -67,7 +59,6 @@ update_agent_positions([A|As], [M|Moves], [], [(A, [M])|Rest]) :-
     check_and_mark_dead(A),
     update_agent_positions(As, Moves, [], Rest).
 update_agent_positions([A|As], [M|Moves], [(A, PrevPos)|RestPrev], [(A, [M|PrevPos])|Rest]) :-
-    format("Updating agent positions ~n"),
     (\+ visited(M) -> assertz(visited(M)) ; true),
     (\+ known_maze(M, _) -> assertz(known_maze(M, empty)) ; true),
     update_adjacent(A),
@@ -81,7 +72,6 @@ update_adjacent(A) :-
 
 mark_walls([]).
 mark_walls([Pos-O|Rest]) :-
-    format("Checking Adjacent: ~w, Object: ~w~n", [Pos, O]),
     (
 	O = t(_) -> (\+ known_maze(Pos, wall) -> assertz(known_maze(Pos, wall)) ; true) ; true
     ),
@@ -92,7 +82,6 @@ check_and_mark_dead(A) :-
     findall(Adj, map_adjacent(Pos, Adj, _), AdjPos),
     length(AdjPos, TotalAdj),
     count_deads(A, AdjPos, 0, Count),
-    format("Agent ~w: Pos ~w, Adjacent ~w, Dead count ~w~n", [A, Pos, AdjPos, Count]),
     (
 	TotalAdj=4, Count >= 3 -> mark_dead(Pos, A) ;
 	TotalAdj=3, Count >= 2 -> mark_dead(Pos, A) ;
@@ -102,9 +91,7 @@ check_and_mark_dead(A) :-
 
 count_deads(_, [], Acc, Acc).
 count_deads(A, [Pos|Rest], Acc, Count) :-
-    format("We're counting deads"),
     (known_maze(Pos, wall) ; dead(Pos, A)), !,
-    format("Found a dead"),
     NewAcc is Acc+1,
     count_deads(A, Rest, NewAcc, Count).
 count_deads(A, [_|Rest], Acc, Count) :-
@@ -114,11 +101,23 @@ mark_dead(Pos, A) :-
     (dead(Pos, A) -> retract(dead(Pos, A)) ; true),
     assertz(dead(Pos, A)).
 
-check_end(Agents, End) :-
+check_end(Agents, AgentStates, NewAgents, NewAgentStates, End) :-
     ailp_grid_size(N),
-    (
-	member(A, Agents),
-	get_agent_position(A, Pos),
-	Pos = p(N, N) -> End=1 ; End=0
+    findall(A, (member(A, Agents), get_agent_position(A, Pos), Pos = p(N, N)), AgentsAtEnd),
+    (   
+        AgentsAtEnd \= [] ->
+        (
+            format("Agents at the end: ~w~n", [AgentsAtEnd]),
+            maplist(leave_maze, AgentsAtEnd),
+            subtract(Agents, AgentsAtEnd, RemainingAgents),
+            findall((A, PosList), (member((A, PosList), AgentStates), \+ member(A, AgentsAtEnd)), RemainingAgentStates),
+	    End=1,
+            NewAgents = RemainingAgents,
+            NewAgentStates = RemainingAgentStates
+        )
+    ;   
+        End = 0,
+        NewAgents = Agents,
+        NewAgentStates = AgentStates
     ).
     
