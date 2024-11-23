@@ -4,10 +4,9 @@
 solve_maze :-
     my_agents(Agents),
     get_agent_positions(Agents, Pos), update_agent_positions(Agents, Pos, [], AgentStates),
-    exploration_phase(Agents, AgentStates, 0),
-    pathfinding_phase(Agents, AgentStates).
+    exploration_phase(Agents, AgentStates, 0).
 
-exploration_phase(_, _, 1). 
+exploration_phase(Agents, AgentStates, 1) :- pathfinding_phase(Agents, AgentStates). 
 exploration_phase(Agents, AgentStates, _) :-
     find_moves(Agents, AgentStates, Moves),
     agents_do_moves(Agents, Moves),
