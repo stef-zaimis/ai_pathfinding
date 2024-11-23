@@ -8,14 +8,14 @@ solve_maze :-
     pathfinding_phase(Agents, AgentStates).
 
 exploration_phase(_, _, 1). 
-exploration_phase(Agents, AgentStates, End) :-
+exploration_phase(Agents, AgentStates, _) :-
     find_moves(Agents, AgentStates, Moves),
     agents_do_moves(Agents, Moves),
     update_agent_positions(Agents, Moves, AgentStates, NewAgentStates),
-    check_end(Agents, NewAgentStates, NextAgents, NextAgentStates, End),
-    exploration_phase(NextAgents, NextAgentStates, End).
+    check_end(Agents, NewAgentStates, NextAgents, NextAgentStates, NewEnd),
+    exploration_phase(NextAgents, NextAgentStates, NewEnd).
 
-pathfinding_phase(Agents) :-
+pathfinding_phase(Agents, AgentStates) :-
     format("Pathfinding Phase started.~n"),
     exit_path(ExitPath),
     find_path(Agents, ExitPath, Paths),
@@ -109,11 +109,17 @@ check_end(Agents, AgentStates, NewAgents, NewAgentStates, End) :-
         (
             format("Agents at the end: ~w~n", [AgentsAtEnd]),
             maplist(leave_maze, AgentsAtEnd),
+	    format("Agent left ~n"),
             subtract(Agents, AgentsAtEnd, RemainingAgents),
+	    format("Subtracted agents ~n"),
             findall((A, PosList), (member((A, PosList), AgentStates), \+ member(A, AgentsAtEnd)), RemainingAgentStates),
+	    format("Foundall ~n"),
 	    End=1,
+	    format("Set end to 1 ~n"),
             NewAgents = RemainingAgents,
-            NewAgentStates = RemainingAgentStates
+	    format("Set new agents ~n"),
+            NewAgentStates = RemainingAgentStates,
+	    format("Set new agent states ~n")
         )
     ;   
         End = 0,
