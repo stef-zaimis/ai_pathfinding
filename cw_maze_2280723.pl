@@ -27,23 +27,23 @@ find_moves([], _, []).
 find_moves([A|As], AgentStates, [M|Moves]) :-
     member((A, PrevPos), AgentStates),
     findall(P,agent_adjacent(A,P,_),PosMoves),
-    categorise_positions(A, PrevPos, PosMoves, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls),
+    categorise_positions(A, PrevPos, PosMoves, GlobalUnexplored, LocalUnexplored, Empty, LocalDead, Walls),
     (
 	GlobalUnexplored \= [] -> MovesList = GlobalUnexplored ;
 	LocalUnexplored \= [] -> MovesList = LocalUnexplored ;
 	Empty \= [] -> MovesList = Empty ;
-	Dead \= [] -> MovesList = Dead ;
+	LocalDead \= [] -> MovesList = LocalDead ;
 	MovesList = Walls
     ),
     random_member(M,MovesList),
     find_moves(As,AgentStates, Moves).
 
 categorise_positions(_, _, [], [], [], [], [], []).
-categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, Empty, [Pos|Dead], Walls) :- dead(Pos, A), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
-categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, Empty, Dead, [Pos|Walls]) :- known_maze(Pos, wall), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
-categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, [Pos|Empty], Dead, Walls) :- known_maze(Pos, empty), member(Pos, PrevPos), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
-categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, [Pos|LocalUnexplored], [Pos|Empty], Dead, Walls) :- known_maze(Pos, empty), \+ member(Pos, PrevPos), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
-categorise_positions(A, PrevPos, [Pos|Rest], [Pos|GlobalUnexplored], LocalUnexplored, Empty, Dead, Walls) :- \+ known_maze(Pos, _), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
+categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, Empty, [Pos|LocalDead], Walls) :- dead(Pos, A), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, LocalDead, Walls).
+categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, Empty, LocanDead, [Pos|Walls]) :- known_maze(Pos, wall), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, LocalDead, Walls).
+categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, [Pos|Empty], LocalDead, Walls) :- known_maze(Pos, empty), member(Pos, PrevPos), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, LocalDead, Walls).
+categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, [Pos|LocalUnexplored], [Pos|Empty], LocalDead, Walls) :- known_maze(Pos, empty), \+ member(Pos, PrevPos), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, LocalDead, Walls).
+categorise_positions(A, PrevPos, [Pos|Rest], [Pos|GlobalUnexplored], LocalUnexplored, Empty, LocalDead, Walls) :- \+ known_maze(Pos, _), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, LocalDead, Walls).
 
 get_agent_positions([], []).
 get_agent_positions([A|As], [Pos|Rest]) :-
