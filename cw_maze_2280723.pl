@@ -4,17 +4,16 @@
 solve_maze :-
     my_agents(Agents),
     get_agent_positions(Agents, Pos), update_agent_positions(Agents, Pos, [], AgentStates),
-    exploration_phase(Agents, AgentStates, 0).
-    my_agents(NewAgents), get_agent_positions(NewAgents, NewPos), update_agent_positions(NewAgents, NewPos, AgentStates, NewAgentStates),
+    exploration_phase(Agents, AgentStates, NewAgents, NewAgentStates, 0),
     pathfinding_phase(NewAgents, NewAgentStates).
 
-exploration_phase(Agents, AgentStates, 1). 
-exploration_phase(Agents, AgentStates, 0) :-
+exploration_phase(Agents, AgentStates, FinalAgents, FinalAgentStates, 1). 
+exploration_phase(Agents, AgentStates, _, _, 0) :-
     find_moves(Agents, AgentStates, Moves),
     agents_do_moves(Agents, Moves),
     update_agent_positions(Agents, Moves, AgentStates, NewAgentStates),
     check_end(Agents, NewAgentStates, NextAgents, NextAgentStates, NewEnd),
-    exploration_phase(NextAgents, NextAgentStates, NewEnd).
+    exploration_phase(NextAgents, NextAgentStates, FinalAgents, FinalAgentStates, NewEnd).
 
 pathfinding_phase(Agents, _) :-
     format("Pathfinding Phase started.~n"),
