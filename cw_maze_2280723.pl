@@ -32,8 +32,8 @@ find_moves([A|As], AgentStates, [M|Moves]) :-
 	GlobalUnexplored \= [] -> MovesList = GlobalUnexplored ;
 	LocalUnexplored \= [] -> MovesList = LocalUnexplored ;
 	Empty \= [] -> MovesList = Empty ;
-	LocalDead \= [] -> MovesList = LocalDead ;
 	GlobalDead \= [] -> MovesList = GlobalDead ;
+	LocalDead \= [] -> MovesList = LocalDead ;
 	MovesList = Walls
     ),
     random_member(M,MovesList),
