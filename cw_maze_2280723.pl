@@ -5,9 +5,11 @@ solve_maze :-
     my_agents(Agents),
     get_agent_positions(Agents, Pos), update_agent_positions(Agents, Pos, [], AgentStates),
     exploration_phase(Agents, AgentStates, 0).
+    my_agents(NewAgents), get_agent_positions(NewAgents, NewPos), update_agent_positions(NewAgents, NewPos, AgentStates, NewAgentStates),
+    pathfinding_phase(NewAgents, NewAgentStates).
 
-exploration_phase(Agents, AgentStates, 1) :- pathfinding_phase(Agents, AgentStates). 
-exploration_phase(Agents, AgentStates, _) :-
+exploration_phase(Agents, AgentStates, 1). 
+exploration_phase(Agents, AgentStates, 0) :-
     find_moves(Agents, AgentStates, Moves),
     agents_do_moves(Agents, Moves),
     update_agent_positions(Agents, Moves, AgentStates, NewAgentStates),
@@ -16,10 +18,9 @@ exploration_phase(Agents, AgentStates, _) :-
 
 pathfinding_phase(Agents, _) :-
     format("Pathfinding Phase started.~n"),
-    exit_path(ExitPath),
-    find_path(Agents, ExitPath, Paths),
-    agents_do_moves(Agents, Paths),
-    exit_maze(Agents).
+    ailp_grid_size(N),
+    get_paths_astar(Agents, p(N, N), Paths),
+    exit_agents(Agents, Paths).
 
 %%%%%%%%%%%%%%%% USEFUL PREDICATES %%%%%%%%%%%%%%%%%%
 % Find a possible move for each agent
@@ -119,3 +120,50 @@ check_end(Agents, AgentStates, NewAgents, NewAgentStates, End) :-
         NewAgentStates = AgentStates
     ).
     
+% Implementention of A* tailored for agents to find exit quickly once the exit path has been found
+get_paths_astar([],_).
+get_paths_astar([A|As], Goal, [Path|Rest]) :-
+    get_agent_position(A, Pos),
+    astar(Pos, Goal, [_,Path]),
+    get_paths_astar(As, Goal, Rest).
+
+exit_agents(Agents, []).
+exit_agents(Agents, [M|Moves]) :-
+    agents_do_moves(Agents, M),
+    (maplist(leave_maze, Agents) ; true),
+    exit_agents(Agents, Moves).
+
+astar(Start, Goal, Path) :-
+    astar_heuristic(Goal, Start, H),
+    astar_search([node(Start, [], 0, H)], [], Goal, RevPath),
+    reverse(RevPath, Path).
+
+astar_search([node(Pos, Path, G, _)|_], _, Goal, [Pos|Path]) :-
+    Pos=Goal.
+astar_search([node(Pos, Path, G, _)|OpenRest], ClosedSet, Goal, FinalPath) :-
+    findall(
+        node(AdjPos, [Pos|Path], G1, F1),
+	(
+	    known_adjacent(Pos, AdjPos),
+	    \+ member(AdjPos, ClosedSet),
+	    \+ member(node(AdjPos, _, _, _), OpenRest),
+	    G1 is G+1,
+	    astar_heuristic(Goal, AdjPos, H1),
+	    F1 is G1+H1
+        ),
+	Children
+    ),
+    append(OpenRest, Children, OpenSet1),
+    sort_open_set(OpenSet1, OpenSetSorted),
+    astar_search(OpenSetSorted, [Pos|ClosedSet], Goal, FinalPath).
+
+sort_open_set(OpenSet, SortedOpenSet) :- predsort(compare_nodes, OpenSet, SortedOpenSet).
+
+compare_nodes(Delta, node(_, _, _, F1), node(_, _, _, F2)) :- compare(Delta, F1, F2).
+
+astar_heuristic(p(X1, Y1), p(X2, Y2), H) :- H is abs(X1-X2) + abs(Y1-Y2).
+
+known_adjacent(Pos, AdjPos) :-
+    map_adjacent(Pos, AdjPos, empty),
+    known_maze(AdjPos, empty),
+    \+ dead(AdjPos, _).
