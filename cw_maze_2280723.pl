@@ -16,7 +16,7 @@ exploration_phase(Agents, AgentStates, FinalAgents, FinalAgentStates, 0) :-
     exploration_phase(NextAgents, NextAgentStates, FinalAgents, FinalAgentStates, NewEnd).
 
 pathfinding_phase(Agents, _) :-
-    format("Pathfinding Phase started with agents: ~w~n", Agents),
+    format("Pathfinding Phase started with agents: ~w~n", [Agents]),
     ailp_grid_size(N),
     get_paths_astar(Agents, p(N, N), Paths),
     format("Paths: ~w ~n", [Paths]),
