@@ -4,8 +4,9 @@
 solve_maze :-
     my_agents(Agents),
     get_agent_positions(Agents, Pos), update_agent_positions(Agents, Pos, [], AgentStates),
-    exploration_phase(Agents, AgentStates, NewAgents, NewAgentStates, 0),
-    pathfinding_phase(NewAgents, NewAgentStates).
+    exploration_phase(Agents, AgentStates, _, _, 0),
+    my_agents(NewAgents),
+    pathfinding_phase(NewAgents).
 
 exploration_phase(Agents, AgentStates, Agents, AgentStates, 1). 
 exploration_phase(Agents, AgentStates, FinalAgents, FinalAgentStates, 0) :-
@@ -15,7 +16,7 @@ exploration_phase(Agents, AgentStates, FinalAgents, FinalAgentStates, 0) :-
     check_end(Agents, NewAgentStates, NextAgents, NextAgentStates, NewEnd),
     exploration_phase(NextAgents, NextAgentStates, FinalAgents, FinalAgentStates, NewEnd).
 
-pathfinding_phase(Agents, _) :-
+pathfinding_phase(Agents) :-
     format("Pathfinding Phase started with agents: ~w~n", [Agents]),
     ailp_grid_size(N),
     get_paths_astar(Agents, p(N, N), Paths),
@@ -131,16 +132,13 @@ get_paths_astar([A|As], Goal, [Path|Rest]) :-
     get_paths_astar(As, Goal, Rest).
 
 astar(Task, [[_, _, Pos|Path]|_],_, RPath) :-
-	format("A* done ~n"),
 	astar_achieved(Task, Pos),
 	reverse([Pos|Path], [_|[_|RPath]]).
 
 astar(Task, [[_, G, Pos|Path]|Rest], Visited, Solution) :-
-	format("Expanding node at ~w with cost ~w ~n", [Pos, G]),
 	findall([F1, G1, NewPos, Pos|Path], (
 		map_adjacent(Pos, NewPos, O), (O=empty ; O=a(_)), get_cost(NewPos, Cost), \+ member(NewPos, Visited), \+ member([_, NewPos|_], Rest),
-		G1 is G+Cost, astar_heuristic(Task, NewPos, H), F1 is G+H,
-		format("Child node: ~w with G: ~w, H: ~w ~n", [NewPos, G1, H])
+		G1 is G+Cost, astar_heuristic(Task, NewPos, H), F1 is G+H
 	), Children),
 	append(Rest, Children, N),
 	sort(N, S),
@@ -159,7 +157,7 @@ get_cost(Pos, Cost) :- known_maze(Pos, empty), \+ dead(Pos, _), Cost is 1.
 get_cost(Pos, Cost) :- dead(Pos, _), Cost is 5.
 get_cost(_, Cost) :- Cost is 100.
 
-exit_agents(_, []) :- format("All agents left ~n").
+exit_agents([], _) :- format("All agents left ~n").
 exit_agents(Agents, Paths) :-
     member(Path, Paths), Path \= [],
     extract_moves(Paths, Moves, NewPaths),
