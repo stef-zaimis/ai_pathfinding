@@ -128,7 +128,7 @@ get_paths_astar([], _, []).
 get_paths_astar([A|As], Goal, [Path|Rest]) :-
     format("A* for agent: ~w ~n", A),
     get_agent_position(A,Pos),
-    astar_heuristic(go(Goal), Pos, F), astar(go(Goal), [[F, 0, Pos, []]], [], Path),
+    astar_heuristic(go(Goal), Pos, F), (astar(go(Goal), [[F, 0, Pos, []]], [], Path) ; format("A* failed for agent ~w, trying bfs ~n", [A]), bfs(go(Goal), [[Pos]], [], Path)),
     get_paths_astar(As, Goal, Rest).
 
 astar(Task, [[_, _, Pos|Path]|_],_, RPath) :-
@@ -137,8 +137,8 @@ astar(Task, [[_, _, Pos|Path]|_],_, RPath) :-
 
 astar(Task, [[_, G, Pos|Path]|Rest], Visited, Solution) :-
 	findall([F1, G1, NewPos, Pos|Path], (
-		map_adjacent(Pos, NewPos, O), (O=empty ; O=a(_)), get_cost(NewPos, Cost), \+ member(NewPos, Visited), \+ member([_, NewPos|_], Rest),
-		G1 is G+Cost, astar_heuristic(Task, NewPos, H), F1 is G+H
+		map_adjacent(Pos, NewPos, _), get_cost(NewPos, Cost), \+ member(NewPos, Visited), \+ member([_, NewPos|_], Rest),
+		G1 is G+Cost, astar_heuristic(Task, NewPos, H), F1 is G1+H
 	), Children),
 	append(Rest, Children, N),
 	sort(N, S),
@@ -156,6 +156,16 @@ astar_achieved(Task,Pos) :-
 get_cost(Pos, Cost) :- known_maze(Pos, empty), \+ dead(Pos, _), Cost is 1.
 get_cost(Pos, Cost) :- dead(Pos, _), Cost is 5.
 get_cost(_, Cost) :- Cost is 100.
+
+% In case A* fails (very peculiar, idk why but sometimes it does?), try bfs
+bfs(Task, [[Pos|Path]|_], _, RPath) :-
+	astar_achieved(Task, Pos),
+	reverse([Pos|Path], [_|RPath]).
+
+bfs(Task, [[Pos|Path]|Rest], Visited, Solution) :-
+	findall([NewPos, Pos|Path], (map_adjacent(Pos, NewPos, O), (O=empty ; O=a(_)), \+ member(NewPos, Visited), \+ member([NewPos|_], Rest)), Children),
+	append(Rest, Children, N),
+	bfs(Task,N, [Pos|Visited], Solution).
 
 exit_agents([], _) :- format("All agents left ~n").
 exit_agents(Agents, Paths) :-
