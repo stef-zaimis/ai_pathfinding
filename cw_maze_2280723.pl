@@ -20,8 +20,7 @@ pathfinding_phase(Agents, _) :-
     ailp_grid_size(N),
     get_paths_astar(Agents, p(N, N), Paths),
     format("Paths: ~w ~n", [Paths]),
-    format("Ending ~n").
-    %exit_agents(Agents, Paths).
+    exit_agents(Agents, Paths).
 
 %%%%%%%%%%%%%%%% USEFUL PREDICATES %%%%%%%%%%%%%%%%%%
 % Find a possible move for each agent
@@ -156,12 +155,18 @@ astar_achieved(Task,Pos) :-
     ;
     Task=go(Pos).
 
-exit_agents(_, []).
-exit_agents(Agents, [M|Moves]) :-
-    agents_do_moves(Agents, M),
-    (maplist(leave_maze, Agents) ; true),
-    exit_agents(Agents, Moves).
-
 get_cost(Pos, Cost) :- known_maze(Pos, empty), \+ dead(Pos, _), Cost is 1.
 get_cost(Pos, Cost) :- dead(Pos, _), Cost is 5.
 get_cost(_, Cost) :- Cost is 100.
+
+exit_agents(_, []).
+exit_agents(Agents, Paths) :-
+    member(Path, Paths), Path \= [],
+    extract_moves(Paths, Moves, NewPaths),
+    agents_do_moves(Agents, Moves),
+    %(maplist(leave_maze, Agents) ; true),
+    exit_agents(Agents, NewPaths).
+
+extract_moves([], [], []).
+extract_moves([[]|Rest], [null|Moves], [[]|NewPaths]) :- extract_moves(Rest, Moves, NewPaths).
+extract_moves([[Move|Path]|Rest], [Move|Moves], [Path|NewPaths]) :- extract_moves(Rest, Moves, NewPaths).
