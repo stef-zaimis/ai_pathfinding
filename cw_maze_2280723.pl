@@ -7,8 +7,8 @@ solve_maze :-
     exploration_phase(Agents, AgentStates, NewAgents, NewAgentStates, 0),
     pathfinding_phase(NewAgents, NewAgentStates).
 
-exploration_phase(Agents, AgentStates, FinalAgents, FinalAgentStates, 1). 
-exploration_phase(Agents, AgentStates, _, _, 0) :-
+exploration_phase(Agents, AgentStates, Agents, AgentStates, 1). 
+exploration_phase(Agents, AgentStates, FinalAgents, FinalAgentStates, 0) :-
     find_moves(Agents, AgentStates, Moves),
     agents_do_moves(Agents, Moves),
     update_agent_positions(Agents, Moves, AgentStates, NewAgentStates),
@@ -16,10 +16,12 @@ exploration_phase(Agents, AgentStates, _, _, 0) :-
     exploration_phase(NextAgents, NextAgentStates, FinalAgents, FinalAgentStates, NewEnd).
 
 pathfinding_phase(Agents, _) :-
-    format("Pathfinding Phase started.~n"),
+    format("Pathfinding Phase started with agents: ~w~n", Agents),
     ailp_grid_size(N),
     get_paths_astar(Agents, p(N, N), Paths),
-    exit_agents(Agents, Paths).
+    format("Paths: ~w ~n", [Paths]),
+    format("Ending ~n").
+    %exit_agents(Agents, Paths).
 
 %%%%%%%%%%%%%%%% USEFUL PREDICATES %%%%%%%%%%%%%%%%%%
 % Find a possible move for each agent
@@ -122,49 +124,44 @@ check_end(Agents, AgentStates, NewAgents, NewAgentStates, End) :-
     ).
     
 % Implementention of A* tailored for agents to find exit quickly once the exit path has been found
-get_paths_astar([],_).
+get_paths_astar([], _, []).
 get_paths_astar([A|As], Goal, [Path|Rest]) :-
-    get_agent_position(A, Pos),
-    astar(Pos, Goal, [_,Path]),
+    format("A* for agent: ~w ~n", A),
+    get_agent_position(A,Pos),
+    astar_heuristic(go(Goal), Pos, F), astar(go(Goal), [[F, 0, Pos, []]], [], Path),
     get_paths_astar(As, Goal, Rest).
 
-exit_agents(Agents, []).
+astar(Task, [[_, _, Pos|Path]|_],_, RPath) :-
+	format("A* done ~n"),
+	astar_achieved(Task, Pos),
+	reverse([Pos|Path], [_|[_|RPath]]).
+
+astar(Task, [[_, G, Pos|Path]|Rest], Visited, Solution) :-
+	format("Expanding node at ~w with cost ~w ~n", [Pos, G]),
+	findall([F1, G1, NewPos, Pos|Path], (
+		map_adjacent(Pos, NewPos, empty), get_cost(NewPos, Cost), \+ member(NewPos, Visited), \+ member([_, NewPos|_], Rest),
+		G1 is G+Cost, astar_heuristic(Task, NewPos, H), F1 is G+H,
+		format("Child node: ~w with G: ~w, H: ~w ~n", [NewPos, G1, H])
+	), Children),
+	append(Rest, Children, N),
+	sort(N, S),
+	astar(Task, S, [Pos|Visited], Solution).
+
+astar_heuristic(go(TargetPos), Pos, H) :-
+    map_distance(Pos, TargetPos, H).
+astar_heuristic(find(_), _, 0).
+
+astar_achieved(Task,Pos) :- 
+    Task=find(Obj), map_adjacent(Pos,_,Obj)
+    ;
+    Task=go(Pos).
+
+exit_agents(_, []).
 exit_agents(Agents, [M|Moves]) :-
     agents_do_moves(Agents, M),
     (maplist(leave_maze, Agents) ; true),
     exit_agents(Agents, Moves).
 
-astar(Start, Goal, Path) :-
-    astar_heuristic(Goal, Start, H),
-    astar_search([node(Start, [], 0, H)], [], Goal, RevPath),
-    reverse(RevPath, Path).
-
-astar_search([node(Pos, Path, G, _)|_], _, Goal, [Pos|Path]) :-
-    Pos=Goal.
-astar_search([node(Pos, Path, G, _)|OpenRest], ClosedSet, Goal, FinalPath) :-
-    findall(
-        node(AdjPos, [Pos|Path], G1, F1),
-	(
-	    known_adjacent(Pos, AdjPos),
-	    \+ member(AdjPos, ClosedSet),
-	    \+ member(node(AdjPos, _, _, _), OpenRest),
-	    G1 is G+1,
-	    astar_heuristic(Goal, AdjPos, H1),
-	    F1 is G1+H1
-        ),
-	Children
-    ),
-    append(OpenRest, Children, OpenSet1),
-    sort_open_set(OpenSet1, OpenSetSorted),
-    astar_search(OpenSetSorted, [Pos|ClosedSet], Goal, FinalPath).
-
-sort_open_set(OpenSet, SortedOpenSet) :- predsort(compare_nodes, OpenSet, SortedOpenSet).
-
-compare_nodes(Delta, node(_, _, _, F1), node(_, _, _, F2)) :- compare(Delta, F1, F2).
-
-astar_heuristic(p(X1, Y1), p(X2, Y2), H) :- H is abs(X1-X2) + abs(Y1-Y2).
-
-known_adjacent(Pos, AdjPos) :-
-    map_adjacent(Pos, AdjPos, empty),
-    known_maze(AdjPos, empty),
-    \+ dead(AdjPos, _).
+get_cost(Pos, Cost) :- known_maze(Pos, empty), \+ dead(Pos, _), Cost is 1.
+get_cost(Pos, Cost) :- dead(Pos, _), Cost is 5.
+get_cost(_, Cost) :- Cost is 100.
