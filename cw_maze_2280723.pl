@@ -138,7 +138,7 @@ astar(Task, [[_, _, Pos|Path]|_],_, RPath) :-
 astar(Task, [[_, G, Pos|Path]|Rest], Visited, Solution) :-
 	format("Expanding node at ~w with cost ~w ~n", [Pos, G]),
 	findall([F1, G1, NewPos, Pos|Path], (
-		map_adjacent(Pos, NewPos, empty), get_cost(NewPos, Cost), \+ member(NewPos, Visited), \+ member([_, NewPos|_], Rest),
+		map_adjacent(Pos, NewPos, O), (O=empty ; O=a(_)), get_cost(NewPos, Cost), \+ member(NewPos, Visited), \+ member([_, NewPos|_], Rest),
 		G1 is G+Cost, astar_heuristic(Task, NewPos, H), F1 is G+H,
 		format("Child node: ~w with G: ~w, H: ~w ~n", [NewPos, G1, H])
 	), Children),
@@ -159,14 +159,25 @@ get_cost(Pos, Cost) :- known_maze(Pos, empty), \+ dead(Pos, _), Cost is 1.
 get_cost(Pos, Cost) :- dead(Pos, _), Cost is 5.
 get_cost(_, Cost) :- Cost is 100.
 
-exit_agents(_, []).
+exit_agents(_, []) :- format("All agents left ~n").
 exit_agents(Agents, Paths) :-
     member(Path, Paths), Path \= [],
     extract_moves(Paths, Moves, NewPaths),
     agents_do_moves(Agents, Moves),
-    %(maplist(leave_maze, Agents) ; true),
-    exit_agents(Agents, NewPaths).
+    attempt_agent_exit(Agents),
+    my_agents(NewAgents),
+    exit_agents(NewAgents, NewPaths).
 
 extract_moves([], [], []).
-extract_moves([[]|Rest], [null|Moves], [[]|NewPaths]) :- extract_moves(Rest, Moves, NewPaths).
+extract_moves([[]|Rest], Moves, NewPaths) :- extract_moves(Rest, Moves, NewPaths).
 extract_moves([[Move|Path]|Rest], [Move|Moves], [Path|NewPaths]) :- extract_moves(Rest, Moves, NewPaths).
+
+attempt_agent_exit([]).
+attempt_agent_exit([A|As]) :-
+    get_agent_position(A, Pos),
+    ailp_grid_size(N),
+    (
+	Pos=p(N,N) -> leave_maze(A) ;
+	true
+    ),
+    attempt_agent_exit(As).
