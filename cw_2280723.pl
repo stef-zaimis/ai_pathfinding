@@ -1,15 +1,18 @@
 % Accomplish a given Task and return the Cost
 solve_task(Task,Cost) :-
-    format("Starting task: ~w from position ~w~n", [Task, P]),
     my_agent(A), get_agent_position(A,P),
+    format("Starting task: ~w from position ~w~n", [Task, P]),
+    get_agent_energy(A, Energy),
+    format("Starting bfs ~n"),
+    find_all_stations(Stations),
+    format("Stations: ~w~n", [Stations]),
     (
         can_reach_target(Task, P, Path, PathCost),
-        get_agent_energy(A, Energy), Energy >= PathCost,
+        Energy >= PathCost,
         format("Energy available: ~w, Cost to target: ~w~n", [Energy, PathCost]),
         agent_do_moves(A, Path), length(Path, Cost),
         format("Task completed directly. Path: ~w, Cost: ~w~n", [Path, Cost])
     ;
-        get_agent_energy(A, Energy),
         format("Energy insufficient to reach target or target unreachable. Energy: ~w~n", [Energy]),
         \+ can_reach_target(Task, P, _, _),
         find_best_charging_station(Task, P, Energy, ChargePath, TargetPath, Cost),
@@ -22,6 +25,10 @@ solve_task(Task,Cost) :-
     %solve_task_bfs(Task, [[P]], [], Pathbfs),
     %heuristic(Task, P, F), solve_task_astar(Task, [[F, P, []]], [], Path),
     %agent_do_moves(A,Path), length(Path,Cost).
+
+find_all_stations(Stations) :-
+    ailp_grid_size(N),
+    findall(c(ID)-p(X, Y), (between(1, N, X), between(1, N, Y), lookup_pos(p(X, Y), c(ID))), Stations).
 
 can_reach_target(Task, StartPos, Path, Cost) :-
     heuristic(Task, StartPos, F),
@@ -45,24 +52,6 @@ select_best_station(Task, Stations, _, EnergyAvailable, BestChargePath, BestTarg
         Cost is StationCost+TargetCost), Costs),
     sort(Costs, [[BestCost, BestChargingPath, BestTargetPath]|_]),
     format("Best charging station chosen. Cost: ~w, Charge path: ~w, Target path: ~w~n", [BestCost, BestChargePath, BestTargetPath]).
-
-find_all_charging_stations(StartPos, EnergyAvailable, Stations) :-
-    format("Searching for all charging stations accessible from ~w with energy ~w~n", [StartPos, EnergyAvailable]),
-    breadth_first_search([StartPos], [], EnergyAvailable, Stations).
-
-breadth_first_search([], _, _, []).
-breadth_first_search([CurrentPos|Rest], Visited, EnergyAvailable, Stations) :-
-    findall([NewPos, Path, Cost],(map_adjacent(CurrentPos, NewPos, c(_)), \+ member(NewPos, Visited), heuristic(go(NewPos), CurrentPos, F), solve_task_astar(go(NewPos), [[F, CurrentPos, []]], [], Path), length(Path, Cost), 
-            Cost =< EnergyAvailable
-        ),
-        FoundStations
-    ),
-    format("Stations found at this position: ~w~n", [FoundStations]),
-    append(FoundStations, RestStations, Stations),
-    findall(NewNode, (map_adjacent(CurrentPos, NewNode, _), \+ member(NewNode, Visited)), Neighbors),
-    append(Rest, Neighbors, NextQueue),
-    append(Visited, [CurrentPos], NewVisited),
-    breadth_first_search(NextQueue, NewVisited, EnergyAvailable, RestStations).
 
 solve_task_astar(Task, [[_, Pos|Path]|_],_, RPath) :-
 	achieved(Task, Pos),
