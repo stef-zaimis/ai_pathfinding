@@ -23,6 +23,11 @@ pathfinding_phase(Agents) :-
     format("Paths: ~w ~n", [Paths]),
     exit_agents(Agents, Paths).
 
+print_path_length([]).
+print_path_length([Path|Paths]) :-
+    length(Path, L), format("Path length: ~w ~n", L),
+    print_path_length(Paths).
+
 %%%%%%%%%%%%%%%% USEFUL PREDICATES %%%%%%%%%%%%%%%%%%
 % Find a possible move for each agent
 find_moves([], _, []).
@@ -126,8 +131,8 @@ check_end(Agents, AgentStates, NewAgents, NewAgentStates, End) :-
 % Implementention of A* tailored for agents to find exit quickly once the exit path has been found
 get_paths_astar([], _, []).
 get_paths_astar([A|As], Goal, [Path|Rest]) :-
-    format("A* for agent: ~w ~n", A),
     get_agent_position(A,Pos),
+    format("A* for agent: ~w at position: ~w ~n", [A, Pos]),
     astar_heuristic(go(Goal), Pos, F), (astar(go(Goal), [[F, 0, Pos, []]], [], Path) ; format("A* failed for agent ~w, trying bfs ~n", [A]), bfs(go(Goal), [[Pos]], [], Path)),
     get_paths_astar(As, Goal, Rest).
 
@@ -170,15 +175,16 @@ bfs(Task, [[Pos|Path]|Rest], Visited, Solution) :-
 exit_agents([], _) :- format("All agents left ~n").
 exit_agents(Agents, Paths) :-
     member(Path, Paths), Path \= [],
-    extract_moves(Paths, Moves, NewPaths),
+    extract_moves(Agents, Paths, Moves, NewPaths),
+    format("doing moves: ~w for agents: ~w ~n", [Moves, Agents]),
     agents_do_moves(Agents, Moves),
     attempt_agent_exit(Agents),
     my_agents(NewAgents),
     exit_agents(NewAgents, NewPaths).
 
-extract_moves([], [], []).
-extract_moves([[]|Rest], Moves, NewPaths) :- extract_moves(Rest, Moves, NewPaths).
-extract_moves([[Move|Path]|Rest], [Move|Moves], [Path|NewPaths]) :- extract_moves(Rest, Moves, NewPaths).
+extract_moves(_, [], [], []).
+extract_moves([A|As], [[]|Rest], Moves, NewPaths) :- format("Extracting agent ~w moves (blank!) ~n", A), extract_moves(As, Rest, Moves, NewPaths).
+extract_moves([A|As], [[Move|Path]|Rest], [Move|Moves], [Path|NewPaths]) :- format("Extracting agent ~w moves ~n", A), extract_moves(As, Rest, Moves, NewPaths).
 
 attempt_agent_exit([]).
 attempt_agent_exit([A|As]) :-
