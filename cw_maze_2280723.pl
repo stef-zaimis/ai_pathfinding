@@ -21,7 +21,11 @@ pathfinding_phase(Agents) :-
     ailp_grid_size(N),
     get_paths_astar(Agents, p(N, N), Paths),
     format("Paths: ~w ~n", [Paths]),
-    exit_agents(Agents, Paths).
+    (
+        exit_agents(Agents, Paths) -> true
+    ;
+        my_agents(NewAgents), format("Some agents got stuck due to equal length paths! Retrying for them ~n"), pathfinding_phase(NewAgents)
+    ).    
 
 print_path_length([]).
 print_path_length([Path|Paths]) :-
@@ -177,7 +181,7 @@ exit_agents(Agents, Paths) :-
     member(Path, Paths), Path \= [],
     extract_moves(Agents, Paths, Moves, NewPaths),
     format("doing moves: ~w for agents: ~w ~n", [Moves, Agents]),
-    agents_do_moves(Agents, Moves),
+    agents_do_moves(Agents, Moves), !,
     attempt_agent_exit(Agents),
     my_agents(NewAgents),
     exit_agents(NewAgents, NewPaths).
