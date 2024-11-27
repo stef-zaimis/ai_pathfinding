@@ -4,22 +4,29 @@
 solve_maze :-
     my_agents(Agents),
     get_agent_positions(Agents, Pos), update_agent_positions(Agents, Pos, [], AgentStates),
-    exploration_phase(Agents, AgentStates, 0).
+    exploration_phase(Agents, AgentStates, _, _, 0),
+    my_agents(NewAgents),
+    pathfinding_phase(NewAgents).
 
-exploration_phase(Agents, AgentStates, 1) :- pathfinding_phase(Agents, AgentStates). 
-exploration_phase(Agents, AgentStates, _) :-
+exploration_phase(Agents, AgentStates, Agents, AgentStates, 1). 
+exploration_phase(Agents, AgentStates, FinalAgents, FinalAgentStates, 0) :-
     find_moves(Agents, AgentStates, Moves),
     agents_do_moves(Agents, Moves),
     update_agent_positions(Agents, Moves, AgentStates, NewAgentStates),
     check_end(Agents, NewAgentStates, NextAgents, NextAgentStates, NewEnd),
-    exploration_phase(NextAgents, NextAgentStates, NewEnd).
+    exploration_phase(NextAgents, NextAgentStates, FinalAgents, FinalAgentStates, NewEnd).
 
-pathfinding_phase(Agents, _) :-
-    format("Pathfinding Phase started.~n"),
-    exit_path(ExitPath),
-    find_path(Agents, ExitPath, Paths),
-    agents_do_moves(Agents, Paths),
-    exit_maze(Agents).
+pathfinding_phase(Agents) :-
+    format("Pathfinding Phase started with agents: ~w~n", [Agents]),
+    ailp_grid_size(N),
+    get_paths_astar(Agents, p(N, N), Paths),
+    format("Paths: ~w ~n", [Paths]),
+    exit_agents(Agents, Paths).
+
+print_path_length([]).
+print_path_length([Path|Paths]) :-
+    length(Path, L), format("Path length: ~w ~n", L),
+    print_path_length(Paths).
 
 %%%%%%%%%%%%%%%% USEFUL PREDICATES %%%%%%%%%%%%%%%%%%
 % Find a possible move for each agent
@@ -27,23 +34,25 @@ find_moves([], _, []).
 find_moves([A|As], AgentStates, [M|Moves]) :-
     member((A, PrevPos), AgentStates),
     findall(P,agent_adjacent(A,P,_),PosMoves),
-    categorise_positions(A, PrevPos, PosMoves, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls),
+    categorise_positions(A, PrevPos, PosMoves, GlobalUnexplored, LocalUnexplored, Empty, GlobalDead, LocalDead, Walls),
     (
 	GlobalUnexplored \= [] -> MovesList = GlobalUnexplored ;
 	LocalUnexplored \= [] -> MovesList = LocalUnexplored ;
 	Empty \= [] -> MovesList = Empty ;
-	Dead \= [] -> MovesList = Dead ;
+	GlobalDead \= [] -> MovesList = GlobalDead ;
+	LocalDead \= [] -> MovesList = LocalDead ;
 	MovesList = Walls
     ),
     random_member(M,MovesList),
     find_moves(As,AgentStates, Moves).
 
-categorise_positions(_, _, [], [], [], [], [], []).
-categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, Empty, [Pos|Dead], Walls) :- dead(Pos, A), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
-categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, Empty, Dead, [Pos|Walls]) :- known_maze(Pos, wall), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
-categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, [Pos|Empty], Dead, Walls) :- known_maze(Pos, empty), member(Pos, PrevPos), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
-categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, [Pos|LocalUnexplored], [Pos|Empty], Dead, Walls) :- known_maze(Pos, empty), \+ member(Pos, PrevPos), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
-categorise_positions(A, PrevPos, [Pos|Rest], [Pos|GlobalUnexplored], LocalUnexplored, Empty, Dead, Walls) :- \+ known_maze(Pos, _), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, Dead, Walls).
+categorise_positions(_, _, [], [], [], [], [], [], []).
+categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, Empty, GlobalDead, [Pos|LocalDead], Walls) :- dead(Pos, A), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, GlobalDead, LocalDead, Walls).
+categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, Empty, [Pos|GlobalDead], LocalDead, Walls) :- dead(Pos, _), \+ dead(Pos, A), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, GlobalDead, LocalDead, Walls).
+categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, Empty, GlobalDead, LocalDead, [Pos|Walls]) :- known_maze(Pos, wall), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, GlobalDead, LocalDead, Walls).
+categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, LocalUnexplored, [Pos|Empty], GlobalDead, LocalDead, Walls) :- known_maze(Pos, empty), member(Pos, PrevPos), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, GlobalDead, LocalDead, Walls).
+categorise_positions(A, PrevPos, [Pos|Rest], GlobalUnexplored, [Pos|LocalUnexplored], [Pos|Empty], GlobalDead, LocalDead, Walls) :- known_maze(Pos, empty), \+ member(Pos, PrevPos), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, GlobalDead, LocalDead, Walls).
+categorise_positions(A, PrevPos, [Pos|Rest], [Pos|GlobalUnexplored], LocalUnexplored, Empty, GlobalDead, LocalDead, Walls) :- \+ known_maze(Pos, _), categorise_positions(A, PrevPos, Rest, GlobalUnexplored, LocalUnexplored, Empty, GlobalDead, LocalDead, Walls).
 
 get_agent_positions([], []).
 get_agent_positions([A|As], [Pos|Rest]) :-
@@ -119,3 +128,70 @@ check_end(Agents, AgentStates, NewAgents, NewAgentStates, End) :-
         NewAgentStates = AgentStates
     ).
     
+% Implementention of A* tailored for agents to find exit quickly once the exit path has been found
+get_paths_astar([], _, []).
+get_paths_astar([A|As], Goal, [Path|Rest]) :-
+    get_agent_position(A,Pos),
+    format("A* for agent: ~w at position: ~w ~n", [A, Pos]),
+    astar_heuristic(go(Goal), Pos, F), (astar(go(Goal), [[F, 0, Pos, []]], [], Path) ; format("A* failed for agent ~w, trying bfs ~n", [A]), bfs(go(Goal), [[Pos]], [], Path)),
+    get_paths_astar(As, Goal, Rest).
+
+astar(Task, [[_, _, Pos|Path]|_],_, RPath) :-
+	astar_achieved(Task, Pos),
+	reverse([Pos|Path], [_|[_|RPath]]).
+
+astar(Task, [[_, G, Pos|Path]|Rest], Visited, Solution) :-
+	findall([F1, G1, NewPos, Pos|Path], (
+		map_adjacent(Pos, NewPos, _), get_cost(NewPos, Cost), \+ member(NewPos, Visited), \+ member([_, NewPos|_], Rest),
+		G1 is G+Cost, astar_heuristic(Task, NewPos, H), F1 is G1+H
+	), Children),
+	append(Rest, Children, N),
+	sort(N, S),
+	astar(Task, S, [Pos|Visited], Solution).
+
+astar_heuristic(go(TargetPos), Pos, H) :-
+    map_distance(Pos, TargetPos, H).
+astar_heuristic(find(_), _, 0).
+
+astar_achieved(Task,Pos) :- 
+    Task=find(Obj), map_adjacent(Pos,_,Obj)
+    ;
+    Task=go(Pos).
+
+get_cost(Pos, Cost) :- known_maze(Pos, empty), \+ dead(Pos, _), Cost is 1.
+get_cost(Pos, Cost) :- dead(Pos, _), Cost is 5.
+get_cost(_, Cost) :- Cost is 100.
+
+% In case A* fails (very peculiar, idk why but sometimes it does?), try bfs
+bfs(Task, [[Pos|Path]|_], _, RPath) :-
+	astar_achieved(Task, Pos),
+	reverse([Pos|Path], [_|RPath]).
+
+bfs(Task, [[Pos|Path]|Rest], Visited, Solution) :-
+	findall([NewPos, Pos|Path], (map_adjacent(Pos, NewPos, O), (O=empty ; O=a(_)), \+ member(NewPos, Visited), \+ member([NewPos|_], Rest)), Children),
+	append(Rest, Children, N),
+	bfs(Task,N, [Pos|Visited], Solution).
+
+exit_agents([], _) :- format("All agents left ~n").
+exit_agents(Agents, Paths) :-
+    member(Path, Paths), Path \= [],
+    extract_moves(Agents, Paths, Moves, NewPaths),
+    format("doing moves: ~w for agents: ~w ~n", [Moves, Agents]),
+    agents_do_moves(Agents, Moves),
+    attempt_agent_exit(Agents),
+    my_agents(NewAgents),
+    exit_agents(NewAgents, NewPaths).
+
+extract_moves(_, [], [], []).
+extract_moves([A|As], [[]|Rest], Moves, NewPaths) :- format("Extracting agent ~w moves (blank!) ~n", A), extract_moves(As, Rest, Moves, NewPaths).
+extract_moves([A|As], [[Move|Path]|Rest], [Move|Moves], [Path|NewPaths]) :- format("Extracting agent ~w moves ~n", A), extract_moves(As, Rest, Moves, NewPaths).
+
+attempt_agent_exit([]).
+attempt_agent_exit([A|As]) :-
+    get_agent_position(A, Pos),
+    ailp_grid_size(N),
+    (
+	Pos=p(N,N) -> leave_maze(A) ;
+	true
+    ),
+    attempt_agent_exit(As).
