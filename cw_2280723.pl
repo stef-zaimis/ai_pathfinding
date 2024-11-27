@@ -11,10 +11,8 @@ solve_task(Task,Cost) :-
         format("Energy insufficient to reach target or target unreachable. Energy: ~w~n", [Energy]),
         \+ can_reach_target(Task, P, _, _),
         find_best_charging_station(Task, P, Energy, Station, ChargePath, TargetPath, Cost),
-        format("Path to charging station: ~w~n", [ChargePath]),
         agent_do_moves(A, ChargePath),
         agent_topup_energy(A, Station),
-        format("Recharged Energy, doing path ~w ~n", [TargetPath]),
         agent_do_moves(A, TargetPath)
     ).
     %solve_task_dfs(Task,[P],[P|Path]), !,
@@ -32,23 +30,18 @@ can_reach_target(Task, StartPos, Path, Cost) :-
     length(Path, Cost),
     my_agent(A),
     get_agent_energy(A, Energy),
-    Energy>=Cost,
-    format("Path to target found: ~w, Cost: ~w~n", [Path, Cost]).
+    Energy>=Cost.
 
 find_best_charging_station(Task, StartPos, EnergyAvailable, Station, ChargePath, TargetPath, Cost) :-
-    format("Finding best charging station from position ~w with energy ~w~n", [StartPos, EnergyAvailable]),
     find_all_stations(Stations),
     Stations \= [],
     get_best_station(Task, Stations, StartPos, EnergyAvailable, Station, ChargePath, TargetPath, Cost).
 
 get_best_station(Task, Stations, StartPos, EnergyAvailable, BestStation, BestChargePath, BestTargetPath, BestCost) :-
-    format("Selecting best charging station from: ~w~n", [Stations]),
-    findall([Cost, Object, ChargePath, TargetPath], (member(Object-StationPos, Stations), format("Trying station at position ~w ~n", StationPos), heuristic(find(Object), StartPos, F), solve_task_astar(find(Object), [[F, StartPos, []]], [], ChargePath), length(ChargePath, ChargeCost), format("It has path: ~w and cost ~w ~n", [ChargePath, ChargeCost]),
-        get_final_position(ChargePath, AgentStationPos), heuristic(Task, AgentStationPos, F1), solve_task_astar(Task, [[F1, AgentStationPos, []]], [], TargetPath), length(TargetPath, TargetCost), format("And has path ~w to the target with cost ~w ~n", [TargetPath, TargetCost]),
-    Cost is ChargeCost+TargetCost, format("Total cost ~w and available energy is ~w ~n", [Cost, EnergyAvailable]), EnergyAvailable>=ChargeCost), Costs),
-    format("Found costs: ~w~n", [Costs]),
+    findall([Cost, Object, ChargePath, TargetPath], (member(Object-StationPos, Stations), heuristic(find(Object), StartPos, F), solve_task_astar(find(Object), [[F, StartPos, []]], [], ChargePath), length(ChargePath, ChargeCost),
+        get_final_position(ChargePath, AgentStationPos), heuristic(Task, AgentStationPos, F1), solve_task_astar(Task, [[F1, AgentStationPos, []]], [], TargetPath), length(TargetPath, TargetCost),
+    Cost is ChargeCost+TargetCost, EnergyAvailable>=ChargeCost), Costs),
     sort(Costs, [[BestCost, BestStation, BestChargePath, BestTargetPath]|_]),
-    format("Best charging station chosen. Cost: ~w, Charge path: ~w, Target path: ~w~n Station: ~w~n", [BestCost, BestChargePath, BestTargetPath, BestStation]).
 
 get_final_position([Pos], Pos).
 get_final_position([_|Rest], Pos) :- get_final_position(Rest, Pos).
