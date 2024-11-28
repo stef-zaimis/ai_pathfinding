@@ -45,56 +45,69 @@ find_identity_helper([], CurrentActors, _, ActorName) :-
     ).
 
 find_identity_helper([Oracle], CurrentActors, Stations, ActorName) :-
+    visit_and_query_oracle(Oracle, CurrentActors, Stations, 0, NewActors, Status),
     (
-        visit_and_query_oracle(Oracle, CurrentActors, Stations, 0, NewActors) -> find_identity_helper([], NewActors, Stations, ActorName)
+        Status=success -> find_identity_helper([], NewActors, Stations, ActorName), !
     ;
-        find_identity_helper([], CurrentActors, Stations, ActorName)
+        Status=recharge -> find_identity_helper([Oracle], CurrentActors, Stations, ActorName), !
+    ;
+        Status=unreachable -> find_identity_helper([], CurrentActors, Stations, ActorName), !
     ).
-     
+
 find_identity_helper(Oracles, CurrentActors, Stations, ActorName) :-
     get_sorted_oracles(Oracles, [Oracle|Rest]),
+    format("Actor list: ~w ~n", [CurrentActors]),
+    ailp_grid_size(N), Threshold is ceiling(((N*N)/4)/6),
+    visit_and_query_oracle(Oracle, CurrentActors, Stations, Threshold, NewActors, Status),
     (
-        format("Actor list: ~w ~n", [CurrentActors]),
-        ailp_grid_size(N), Threshold is ceiling(((N*N)/4)/6),
-        visit_and_query_oracle(Oracle, CurrentActors, Stations, Threshold, NewActors) -> find_identity_helper(Rest, NewActors, Stations, ActorName)
+        Status=success -> find_identity_helper(Rest, NewActors, Stations, ActorName)
     ;
-        find_identity_helper(Rest, CurrentActors, Stations, ActorName)
+        Status=recharge -> find_identity_helper(Oracles, CurrentActors, Stations, ActorName)
+    ;
+        Status=unreachable -> find_identity_helper(Rest, CurrentActors, Stations, ActorName)
     ).
 
-visit_and_query_oracle(Oracle-OraclePos, Actors, Stations, Threshold, NewActors) :-
+visit_and_query_oracle(Oracle-_, Actors, Stations, Threshold, NewActors, Status) :-
     my_agent(A), get_agent_position(A, Pos), get_agent_energy(A, Energy),
     ailp_grid_size(N), QueryCost is ceiling(((N*N)/4)/10),
-    heuristic(find(Oracle), Pos, F), solve_task_astar(find(Oracle), [[F, Pos, []]], [], Path), length(Path, PathCost),
-
-    TotalCost is PathCost + QueryCost + Threshold,
     (
-        Energy >= TotalCost -> 
-            (
-                format("We can go there in one go ~n"),
-                agent_do_moves(A, Path),
-                agent_ask_oracle(A, Oracle, link, L),
-                format("Queried oracle, Including actors ~n"),
-                include(actor_has_link(L), Actors, NewActors)
-            )
+        heuristic(find(Oracle), Pos, F), solve_task_astar(find(Oracle), [[F, Pos, []]], [], Path), length(Path, PathCost),
+
+        TotalCost is PathCost + QueryCost + Threshold,
+        (
+            Energy >= TotalCost -> 
+                (
+                    format("We can go there in one go ~n"),
+                    agent_do_moves(A, Path),
+                    agent_ask_oracle(A, Oracle, link, L),
+                    format("Queried oracle, Including actors ~n"),
+                    include(actor_has_link(L), Actors, NewActors),
+                    Status=success, !
+                )
+            ;
+                (
+                    format("We need to topup, current energy: ~w ~n", Energy),
+                    find_closest_station_distance(Stations, Pos, Energy, Station, ChargePath, _),
+                    agent_do_moves(A, ChargePath),
+                    format("Topping up"),
+                    agent_topup_energy(A, Station),
+                    NewActors=Actors,
+                    Status=recharge, !
+                    %get_best_station_distance(find(Oracle), Stations, Pos, OraclePos, Energy, Station, ChargePath, TargetPath, _),
+                    %agent_do_moves(A, ChargePath),
+                    %format("Topping up"),
+                    %agent_topup_energy(A, Station),
+                    %format("Topped up"),
+                    %agent_do_moves(A, TargetPath),
+                    %agent_ask_oracle(A, Oracle, link, L),
+                    %format("Queried oracle ~n"),
+                    %include(actor_has_link(L), Actors, NewActors)
+                )
+        )
         ;
-            (
-                format("We need to topup, current energy: ~w ~n", Energy),
-                find_closest_station_distance(Stations, Pos, Energy, Station, Path, _),
-                agent_do_moves(A, ChargePath),
-                format("Topping up"),
-                agent_topup_energy(A, Station),
-                fail
-                
-                %get_best_station_distance(find(Oracle), Stations, Pos, OraclePos, Energy, Station, ChargePath, TargetPath, _),
-                %agent_do_moves(A, ChargePath),
-                %format("Topping up"),
-                %agent_topup_energy(A, Station),
-                %format("Topped up"),
-                %agent_do_moves(A, TargetPath),
-                %agent_ask_oracle(A, Oracle, link, L),
-                %format("Queried oracle ~n"),
-                %include(actor_has_link(L), Actors, NewActors)
-            )
+            format("Unreachable oracle"),
+            NewActors=Actors,
+            Status=unreachable
     ).
 
 calculate_total_cost(0, QueryCost, Threshold, TotalCost) :- TotalCost is QueryCost+ceiling(Threshold*0.1).
@@ -143,7 +156,5 @@ try_stations(Task, [_-_|Rest], Pos, Energy, Station, ChargePath, TargetPath, Cos
 
 try_stations_no_return([], _, _, _, _, _) :- fail.
 try_stations_no_return([Station-_|_], Pos, Energy, Station, Path, Cost) :-
-    heuristic(find(Station), Pos, F), solve_task_astar(find(Station), [[F, Pos, []]], [], Path), length(Path, Cost), Energy>=Cost,
+    heuristic(find(Station), Pos, F), solve_task_astar(find(Station), [[F, Pos, []]], [], Path), length(Path, Cost), Energy>=Cost.
 try_stations([_-_|Rest], Pos, Energy, Station, Path, Cost) :- try_stations(Rest, Pos, Energy, Station, Path, Cost).
-
-
