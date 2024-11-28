@@ -16,9 +16,7 @@ eliminate(As,A,K) :-
 % Deduce the identity of the secret actor A
 find_identity(A) :- 
     initialise_grid(Oracles, Stations),
-    format("All stations: ~w ~n", [Stations]),
     findall(Actor, actor(Actor), AllActors),
-    format("All actors: ~w ~n", [AllActors]),
     find_identity_helper(Oracles, AllActors, Stations, A).
     %findall(A,actor(A),As), eliminate(As,A,1).
 
@@ -35,6 +33,7 @@ get_sorted_oracles(Oracles, SortedOracles) :-
 
 %find_identity_helper(_, [ActorName], _, ActorName).
 find_identity_helper([], CurrentActors, _, ActorName) :-
+    format("Final list: ~w ~n", [CurrentActors]),
     (
         length(CurrentActors, 1) -> CurrentActors = [ActorName]
     ;
@@ -49,8 +48,7 @@ find_identity_helper([Oracle], CurrentActors, Stations, ActorName) :-
     ).
      
 find_identity_helper(Oracles, CurrentActors, Stations, ActorName) :-
-    get_sorted_oracles(Oracles, [Oracle|Rest]), List=[Oracle|Rest],
-    format("Sorted oracles: ~w~n", [List]),
+    get_sorted_oracles(Oracles, [Oracle|Rest]),
     (
         format("Actor list: ~w ~n", [CurrentActors]),
         ailp_grid_size(N), Threshold is ceiling(((N*N)/4)/6),
@@ -60,12 +58,9 @@ find_identity_helper(Oracles, CurrentActors, Stations, ActorName) :-
     ).
 
 visit_and_query_oracle(Oracle-OraclePos, Actors, Stations, Threshold, NewActors) :-
-    format("Going to new oracle ~n"),
     my_agent(A), get_agent_position(A, Pos), get_agent_energy(A, Energy),
     ailp_grid_size(N), QueryCost is ceiling(((N*N)/4)/10),
-    format("Running A* ~n"),
     heuristic(find(Oracle), Pos, F), solve_task_astar(find(Oracle), [[F, Pos, []]], [], Path), length(Path, PathCost),
-    format("A* done ~n"),
 
     TotalCost is PathCost + QueryCost + Threshold,
     (
@@ -75,22 +70,18 @@ visit_and_query_oracle(Oracle-OraclePos, Actors, Stations, Threshold, NewActors)
                 agent_do_moves(A, Path),
                 agent_ask_oracle(A, Oracle, link, L),
                 format("Queried oracle, Including actors ~n"),
-                include(actor_has_link(L), Actors, NewActors),
-                format("Included actors: ~w ~n", [NewActors])
+                include(actor_has_link(L), Actors, NewActors)
             )
         ;
             (
                 format("We need to topup, current energy: ~w ~n", Energy),
                 get_best_station_distance(find(Oracle), Stations, Pos, OraclePos, Energy, Station, ChargePath, TargetPath, _),
-                format("Going to charging station ~n"),
                 agent_do_moves(A, ChargePath),
                 agent_topup_energy(A, Station),
-                format("Going to  oracle ~n"),
                 agent_do_moves(A, TargetPath),
                 agent_ask_oracle(A, Oracle, link, L),
                 format("Queried oracle ~n"),
-                include(actor_has_link(L), Actors, NewActors),
-                format("Included actors: ~w ~n", [NewActors])
+                include(actor_has_link(L), Actors, NewActors)
             )
     ).
 
@@ -124,7 +115,6 @@ sum_inverse_distances([D|Ds], Acc, Total) :-
 get_best_station_distance(Task, Stations, StartPos, TargetPos, EnergyAvailable, BestStation, BestChargePath, BestTargetPath, BestCost) :-
     findall(Cost-(Station-StationPos), (member(Station-StationPos, Stations), map_distance(StartPos, StationPos, H1), map_distance(StationPos, TargetPos, H2), Cost is H1+H2), Costs),
     sort(Costs, SortedPairs), pairs_values(SortedPairs, SortedStations),
-    format("Sorted stations: ~w ~n", [SortedPairs]),
     try_stations(Task, SortedStations, StartPos, EnergyAvailable, BestStation, BestChargePath, BestTargetPath, BestCost). 
 
 try_stations(_, [], _, _, _, _, _, _) :- fail.
