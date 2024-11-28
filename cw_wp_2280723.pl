@@ -15,4 +15,60 @@ eliminate(As,A,K) :-
 
 % Deduce the identity of the secret actor A
 find_identity(A) :- 
-    findall(A,actor(A),As), eliminate(As,A,1).
+    initialise_grid(Oracles, Stations),
+    format("All stations: ~w ~n", [Stations]),
+    findall(Actor, actor(Actor), AllActors),
+    find_identity_helper(Oracles, AllActors, Stations, A).
+    %findall(A,actor(A),As), eliminate(As,A,1).
+
+initialise_grid(Oracles, Stations) :-
+    ailp_grid_size(N),
+    findall(o(ID), (between(1, N, X), between(1, N, Y), lookup_pos(p(X, Y), o(ID))), Oracles),
+    findall(c(ID)-p(X, Y), (between(1, N, X), between(1, N, Y), lookup_pos(p(X, Y), c(ID))), Stations).
+
+find_identity_helper([], CurrentActors, _, ActorName) :-
+    (
+        length(CurrentActors, 1) -> CurrentActors = [ActorName]
+    ;
+        ActorName = unknown
+    ).
+find_identity_helper([Oracle|Rest], CurrentActors, Stations, ActorName) :-
+    (
+        ailp_grid_size(N), Threshold is ceil(((N*N)/4)/4),
+        visit_and_query_oracle(Oracle, Stations, Threshold, NewActors) -> find_identity_helper(Rest, NewActors, Stations, ActorName)
+    ;
+        find_identity_helper(Rest, CurrentActors, Stations, ActorName)
+    ).
+
+visit_and_query_oracle(Oracle, Stations, Threshold, NewActors) :-
+    format("Going to new oracle ~n"),
+    my_agent(A), get_agent_position(A, Pos), get_agent_energy(A, Energy),
+    ailp_grid_size(N), QueryCost is ceil(((N*N)/4)/10),
+    heuristic(find(Oracle), Pos, F), solve_task_astar(find(Oracle), [[F, Pos, []]], [], Path), length(Path, PathCost),
+
+    TotalCost is PathCost + QueryCost + Threshold,
+    (
+        Energy >= TotalCost -> 
+            (
+                format("We can go there in one go ~n"),
+                agent_do_moves(A, Path),
+                agent_ask_oracle(A, Oracle, link, L),
+                format("Queried oracle ~n"),
+                findall(Actor, actor(Actor), AllActors),
+                include(actor_has_link(L), AllActors, NewActors)
+            )
+        ;
+            (
+                format("We need to topup, current energy: ~w ~n", Energy),
+                get_best_station(go(Oracle), Stations, Pos, Energy, Station, ChargePath, TargetPath, _),
+                format("Going to charging station ~n"),
+                agent_do_moves(A, ChargePath),
+                agent_topup_energy(A, Station),
+                format("Going to  oracle ~n"),
+                agent_do_moves(A, TargetPath),
+                agent_ask_oracle(A, Oracle, link, L),
+                format("Queried oracle ~n"),
+                findall(Actor, actor(Actor), AllActors),
+                include(actor_has_link(L), AllActors, NewActors)
+            )
+    ).

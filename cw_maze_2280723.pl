@@ -21,11 +21,7 @@ pathfinding_phase(Agents) :-
     ailp_grid_size(N),
     get_paths_astar(Agents, p(N, N), Paths),
     format("Paths: ~w ~n", [Paths]),
-    (
-        exit_agents(Agents, Paths) -> true
-    ;
-        my_agents(NewAgents), format("Some agents got stuck due to equal length paths! Retrying for them ~n"), pathfinding_phase(NewAgents)
-    ).    
+    exit_agents(Agents, Paths).
 
 print_path_length([]).
 print_path_length([Path|Paths]) :-
@@ -178,14 +174,19 @@ bfs(Task, [[Pos|Path]|Rest], Visited, Solution) :-
 
 exit_agents([], _) :- format("All agents left ~n").
 exit_agents(Agents, Paths) :-
-    member(Path, Paths), Path \= [],
-    extract_moves(Agents, Paths, Moves, NewPaths),
-    format("doing moves: ~w for agents: ~w ~n", [Moves, Agents]),
-    agents_do_moves(Agents, Moves), !,
-    attempt_agent_exit(Agents),
-    my_agents(NewAgents),
-    exit_agents(NewAgents, NewPaths).
-
+    (
+        member(Path, Paths), Path \= [],
+        extract_moves(Agents, Paths, Moves, NewPaths),
+        format("doing moves: ~w for agents: ~w ~n", [Moves, Agents]),
+        agents_do_moves(Agents, Moves),
+        attempt_agent_exit(Agents),
+        my_agents(NewAgents),
+        exit_agents(NewAgents, NewPaths)
+    ->  true
+    ;  
+        format("Some agents got stuck due to equal length paths! Retrying for them ~n"), my_agents(NewAgents), pathfinding_phase(NewAgents) 
+    ).
+    
 extract_moves(_, [], [], []).
 extract_moves([A|As], [[]|Rest], Moves, NewPaths) :- format("Extracting agent ~w moves (blank!) ~n", A), extract_moves(As, Rest, Moves, NewPaths).
 extract_moves([A|As], [[Move|Path]|Rest], [Move|Moves], [Path|NewPaths]) :- format("Extracting agent ~w moves ~n", A), extract_moves(As, Rest, Moves, NewPaths).
