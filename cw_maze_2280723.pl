@@ -188,8 +188,8 @@ exit_agents(Agents, Paths) :-
     ).
     
 extract_moves(_, [], [], []).
-extract_moves([A|As], [[]|Rest], Moves, NewPaths) :- format("Extracting agent ~w moves (blank!) ~n", A), extract_moves(As, Rest, Moves, NewPaths).
-extract_moves([A|As], [[Move|Path]|Rest], [Move|Moves], [Path|NewPaths]) :- format("Extracting agent ~w moves ~n", A), extract_moves(As, Rest, Moves, NewPaths).
+extract_moves([A|As], [[]|Rest], Moves, NewPaths) :- extract_moves(As, Rest, Moves, NewPaths).
+extract_moves([A|As], [[Move|Path]|Rest], [Move|Moves], [Path|NewPaths]) :- extract_moves(As, Rest, Moves, NewPaths).
 
 attempt_agent_exit([]).
 attempt_agent_exit([A|As]) :-
