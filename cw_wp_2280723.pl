@@ -33,13 +33,21 @@ get_sorted_oracles(Oracles, SortedOracles) :-
     total_scores(Pos, ClusteringScores, Scores),
     sort_oracles(Scores, SortedOracles).
 
-find_identity_helper(_, [ActorName], _, ActorName).
+%find_identity_helper(_, [ActorName], _, ActorName).
 find_identity_helper([], CurrentActors, _, ActorName) :-
     (
         length(CurrentActors, 1) -> CurrentActors = [ActorName]
     ;
         ActorName = unknown
     ).
+
+find_identity_helper([Oracle], CurrentActors, Stations, ActorName) :-
+    (
+        visit_and_query_oracle(Oracle, CurrentActors, Stations, 0, NewActors) -> find_identity_helper([], NewActors, Stations, ActorName)
+    ;
+        find_identity_helper([], CurrentActors, Stations, ActorName)
+    ).
+     
 find_identity_helper(Oracles, CurrentActors, Stations, ActorName) :-
     get_sorted_oracles(Oracles, [Oracle|Rest]), List=[Oracle|Rest],
     format("Sorted oracles: ~w~n", [List]),
@@ -86,7 +94,9 @@ visit_and_query_oracle(Oracle-OraclePos, Actors, Stations, Threshold, NewActors)
             )
     ).
 
-calculate_total_cost(PathCost, QueryCost, Threshold, TotalCost) :- between(0, 5, PathCost), TotalCost is PathCost+QueryCost+ceiling(Threshold*0.7).
+calculate_total_cost(0, QueryCost, Threshold, TotalCost) :- TotalCost is QueryCost+ceiling(Threshold*0.1).
+calculate_total_cost(1, QueryCost, Threshold, TotalCost) :- TotalCost is 1+QueryCost+ceiling(Threshold*0.3).
+calculate_total_cost(PathCost, QueryCost, Threshold, TotalCost) :- between(2, 5, PathCost), TotalCost is PathCost+QueryCost+ceiling(Threshold*0.7).
 calculate_total_cost(PathCost, QueryCost, Threshold, TotalCost) :- TotalCost is PathCost+QueryCost+Threshold.
 
 sort_oracles(Scores, SortedOracles) :-
