@@ -45,17 +45,19 @@ find_identity_helper(Oracles, CurrentActors, Stations, ActorName) :-
     format("Sorted oracles: ~w~n", [List]),
     (
         format("Actor list: ~w ~n", [CurrentActors]),
-        ailp_grid_size(N), Threshold is ceil(((N*N)/4)/4),
+        ailp_grid_size(N), Threshold is ceiling(((N*N)/4)/6),
         visit_and_query_oracle(Oracle, CurrentActors, Stations, Threshold, NewActors) -> find_identity_helper(Rest, NewActors, Stations, ActorName)
     ;
         find_identity_helper(Rest, CurrentActors, Stations, ActorName)
     ).
 
-visit_and_query_oracle(Oracle-_, Actors, Stations, Threshold, NewActors) :-
+visit_and_query_oracle(Oracle-OraclePos, Actors, Stations, Threshold, NewActors) :-
     format("Going to new oracle ~n"),
     my_agent(A), get_agent_position(A, Pos), get_agent_energy(A, Energy),
-    ailp_grid_size(N), QueryCost is ceil(((N*N)/4)/10),
+    ailp_grid_size(N), QueryCost is ceiling(((N*N)/4)/10),
+    format("Running A* ~n"),
     heuristic(find(Oracle), Pos, F), solve_task_astar(find(Oracle), [[F, Pos, []]], [], Path), length(Path, PathCost),
+    format("A* done ~n"),
 
     TotalCost is PathCost + QueryCost + Threshold,
     (
@@ -64,14 +66,14 @@ visit_and_query_oracle(Oracle-_, Actors, Stations, Threshold, NewActors) :-
                 format("We can go there in one go ~n"),
                 agent_do_moves(A, Path),
                 agent_ask_oracle(A, Oracle, link, L),
-                format("Queried oracle ~n"),
+                format("Queried oracle, Including actors ~n"),
                 include(actor_has_link(L), Actors, NewActors),
                 format("Included actors: ~w ~n", [NewActors])
             )
         ;
             (
                 format("We need to topup, current energy: ~w ~n", Energy),
-                get_best_station(find(Oracle), Stations, Pos, Energy, Station, ChargePath, TargetPath, _),
+                get_best_station_distance(find(Oracle), Stations, Pos, OraclePos, Energy, Station, ChargePath, TargetPath, _),
                 format("Going to charging station ~n"),
                 agent_do_moves(A, ChargePath),
                 agent_topup_energy(A, Station),
@@ -83,6 +85,9 @@ visit_and_query_oracle(Oracle-_, Actors, Stations, Threshold, NewActors) :-
                 format("Included actors: ~w ~n", [NewActors])
             )
     ).
+
+calculate_total_cost(PathCost, QueryCost, Threshold, TotalCost) :- between(0, 5, PathCost), TotalCost is PathCost+QueryCost+ceiling(Threshold*0.7).
+calculate_total_cost(PathCost, QueryCost, Threshold, TotalCost) :- TotalCost is PathCost+QueryCost+Threshold.
 
 sort_oracles(Scores, SortedOracles) :-
     sort(Scores, SortedPairs), 
@@ -105,3 +110,16 @@ sum_inverse_distances([D|Ds], Acc, Total) :-
     InvD is 1/D,
     NewAcc is Acc+InvD,
     sum_inverse_distances(Ds, NewAcc, Total).
+
+get_best_station_distance(Task, Stations, StartPos, TargetPos, EnergyAvailable, BestStation, BestChargePath, BestTargetPath, BestCost) :-
+    findall(Cost-(Station-StationPos), (member(Station-StationPos, Stations), map_distance(StartPos, StationPos, H1), map_distance(StationPos, TargetPos, H2), Cost is H1+H2), Costs),
+    sort(Costs, SortedPairs), pairs_values(SortedPairs, SortedStations),
+    format("Sorted stations: ~w ~n", [SortedPairs]),
+    try_stations(Task, SortedStations, StartPos, EnergyAvailable, BestStation, BestChargePath, BestTargetPath, BestCost). 
+
+try_stations(_, [], _, _, _, _, _, _) :- fail.
+try_stations(Task, [Station-_|_], Pos, Energy, Station, ChargePath, TargetPath, Cost) :-
+    heuristic(find(Station), Pos, F), solve_task_astar(find(Station), [[F, Pos, []]], [], ChargePath), length(ChargePath, StationCost), Energy>=StationCost,
+    get_final_position(ChargePath, StationPos), heuristic(Task, StationPos, F1), solve_task_astar(Task, [[F1, StationPos, []]], [], TargetPath), length(TargetPath, TargetCost),
+    Cost is StationCost+TargetCost.
+try_stations(Task, [_-_|Rest], Pos, Energy, Station, ChargePath, TargetPath, Cost) :- try_stations(Task, Rest, Pos, Energy, Station, ChargePath, TargetPath, Cost).

@@ -41,7 +41,6 @@ get_best_station(Task, Stations, StartPos, EnergyAvailable, BestStation, BestCha
     findall([Cost, Object, ChargePath, TargetPath], (member(Object-_, Stations), heuristic(find(Object), StartPos, F), solve_task_astar(find(Object), [[F, StartPos, []]], [], ChargePath), length(ChargePath, ChargeCost), EnergyAvailable>=ChargeCost, format("This costs ~w and we have ~w ~n", [ChargeCost, EnergyAvailable]),
         get_final_position(ChargePath, AgentStationPos), heuristic(Task, AgentStationPos, F1), solve_task_astar(Task, [[F1, AgentStationPos, []]], [], TargetPath), length(TargetPath, TargetCost),
     Cost is ChargeCost+TargetCost), Costs),
-    length(Costs, LCost),
     sort(Costs, [[BestCost, BestStation, BestChargePath, BestTargetPath]|_]).
 
 get_final_position([Pos], Pos).
