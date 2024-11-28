@@ -1,6 +1,10 @@
+:- dynamic actor_wikipedia_text/2.
+
 % True if link L appears on A's wikipedia page
-actor_has_link(L,A) :- 
-    actor(A), wp(A,WT), wt_link(WT,L).
+actor_has_link(L,A) :-
+    actor_wikipedia_text(A, WT), !, wt_link(WT, L).
+actor_has_link(L, A) :-
+    actor(A), wp(A,WT), assert(actor_wikipedia_text(A, WT)), wt_link(WT,L).
 
 % Attempt to solve by visiting each oracle in ID order
 eliminate(As,A,K) :- 
@@ -75,13 +79,21 @@ visit_and_query_oracle(Oracle-OraclePos, Actors, Stations, Threshold, NewActors)
         ;
             (
                 format("We need to topup, current energy: ~w ~n", Energy),
-                get_best_station_distance(find(Oracle), Stations, Pos, OraclePos, Energy, Station, ChargePath, TargetPath, _),
+                find_closest_station_distance(Stations, Pos, Energy, Station, Path, _),
                 agent_do_moves(A, ChargePath),
+                format("Topping up"),
                 agent_topup_energy(A, Station),
-                agent_do_moves(A, TargetPath),
-                agent_ask_oracle(A, Oracle, link, L),
-                format("Queried oracle ~n"),
-                include(actor_has_link(L), Actors, NewActors)
+                fail
+                
+                %get_best_station_distance(find(Oracle), Stations, Pos, OraclePos, Energy, Station, ChargePath, TargetPath, _),
+                %agent_do_moves(A, ChargePath),
+                %format("Topping up"),
+                %agent_topup_energy(A, Station),
+                %format("Topped up"),
+                %agent_do_moves(A, TargetPath),
+                %agent_ask_oracle(A, Oracle, link, L),
+                %format("Queried oracle ~n"),
+                %include(actor_has_link(L), Actors, NewActors)
             )
     ).
 
@@ -112,6 +124,11 @@ sum_inverse_distances([D|Ds], Acc, Total) :-
     NewAcc is Acc+InvD,
     sum_inverse_distances(Ds, NewAcc, Total).
 
+find_closest_station_distance(Stations, StartPos, EnergyAvailable, BestStation, BestPath, BestCost) :-
+    findall(Cost-(Station-StationPos), (member(Station-StationPos, Stations), map_distance(StartPos, StationPos, Cost)), Costs),
+    sort(Costs, SortedPairs), pairs_values(SortedPairs, SortedStations),
+    try_stations_no_return(SortedStations, StartPos, EnergyAvailable, BestStation, BestPath, BestCost). 
+
 get_best_station_distance(Task, Stations, StartPos, TargetPos, EnergyAvailable, BestStation, BestChargePath, BestTargetPath, BestCost) :-
     findall(Cost-(Station-StationPos), (member(Station-StationPos, Stations), map_distance(StartPos, StationPos, H1), map_distance(StationPos, TargetPos, H2), Cost is H1+H2), Costs),
     sort(Costs, SortedPairs), pairs_values(SortedPairs, SortedStations),
@@ -123,3 +140,10 @@ try_stations(Task, [Station-_|_], Pos, Energy, Station, ChargePath, TargetPath, 
     get_final_position(ChargePath, StationPos), heuristic(Task, StationPos, F1), solve_task_astar(Task, [[F1, StationPos, []]], [], TargetPath), length(TargetPath, TargetCost),
     Cost is StationCost+TargetCost.
 try_stations(Task, [_-_|Rest], Pos, Energy, Station, ChargePath, TargetPath, Cost) :- try_stations(Task, Rest, Pos, Energy, Station, ChargePath, TargetPath, Cost).
+
+try_stations_no_return([], _, _, _, _, _) :- fail.
+try_stations_no_return([Station-_|_], Pos, Energy, Station, Path, Cost) :-
+    heuristic(find(Station), Pos, F), solve_task_astar(find(Station), [[F, Pos, []]], [], Path), length(Path, Cost), Energy>=Cost,
+try_stations([_-_|Rest], Pos, Energy, Station, Path, Cost) :- try_stations(Rest, Pos, Energy, Station, Path, Cost).
+
+
