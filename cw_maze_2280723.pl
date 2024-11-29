@@ -6,9 +6,9 @@ solve_maze :-
     get_agent_positions(Agents, Pos), update_agent_positions(Agents, Pos, [], AgentStates),
     exploration_phase(Agents, AgentStates, _, _, 0),
     my_agents(NewAgents),
-    pathfinding_phase(NewAgents).
+    pathfinding_phase(NewAgents), !.
 
-exploration_phase(Agents, AgentStates, Agents, AgentStates, 1). 
+exploration_phase(Agents, AgentStates, Agents, AgentStates, 1) :- !.
 exploration_phase(Agents, AgentStates, FinalAgents, FinalAgentStates, 0) :-
     find_moves(Agents, AgentStates, Moves),
     agents_do_moves(Agents, Moves),
@@ -17,16 +17,9 @@ exploration_phase(Agents, AgentStates, FinalAgents, FinalAgentStates, 0) :-
     exploration_phase(NextAgents, NextAgentStates, FinalAgents, FinalAgentStates, NewEnd).
 
 pathfinding_phase(Agents) :-
-    format("Pathfinding Phase started with agents: ~w~n", [Agents]),
     ailp_grid_size(N),
     get_paths_astar(Agents, p(N, N), Paths),
-    format("Paths: ~w ~n", [Paths]),
     exit_agents(Agents, Paths).
-
-print_path_length([]).
-print_path_length([Path|Paths]) :-
-    length(Path, L), format("Path length: ~w ~n", L),
-    print_path_length(Paths).
 
 %%%%%%%%%%%%%%%% USEFUL PREDICATES %%%%%%%%%%%%%%%%%%
 % Find a possible move for each agent
@@ -36,11 +29,11 @@ find_moves([A|As], AgentStates, [M|Moves]) :-
     findall(P,agent_adjacent(A,P,_),PosMoves),
     categorise_positions(A, PrevPos, PosMoves, GlobalUnexplored, LocalUnexplored, Empty, GlobalDead, LocalDead, Walls),
     (
-	GlobalUnexplored \= [] -> MovesList = GlobalUnexplored ;
-	LocalUnexplored \= [] -> MovesList = LocalUnexplored ;
-	Empty \= [] -> MovesList = Empty ;
-	GlobalDead \= [] -> MovesList = GlobalDead ;
-	LocalDead \= [] -> MovesList = LocalDead ;
+	GlobalUnexplored \= [],  MovesList = GlobalUnexplored ;
+	LocalUnexplored \= [], MovesList = LocalUnexplored ;
+	Empty \= [], MovesList = Empty ;
+	GlobalDead \= [], MovesList = GlobalDead ;
+	LocalDead \= [], MovesList = LocalDead ;
 	MovesList = Walls
     ),
     random_member(M,MovesList),
@@ -132,7 +125,6 @@ check_end(Agents, AgentStates, NewAgents, NewAgentStates, End) :-
 get_paths_astar([], _, []).
 get_paths_astar([A|As], Goal, [Path|Rest]) :-
     get_agent_position(A,Pos),
-    format("A* for agent: ~w at position: ~w ~n", [A, Pos]),
     astar_heuristic(go(Goal), Pos, F), (astar(go(Goal), [[F, 0, Pos, []]], [], Path) ; format("A* failed for agent ~w, trying bfs ~n", [A]), bfs(go(Goal), [[Pos]], [], Path)),
     get_paths_astar(As, Goal, Rest).
 
@@ -172,24 +164,19 @@ bfs(Task, [[Pos|Path]|Rest], Visited, Solution) :-
 	append(Rest, Children, N),
 	bfs(Task,N, [Pos|Visited], Solution).
 
-exit_agents([], _) :- format("All agents left ~n").
+exit_agents([], _).
 exit_agents(Agents, Paths) :-
-    (
-        member(Path, Paths), Path \= [],
-        extract_moves(Agents, Paths, Moves, NewPaths),
-        format("doing moves: ~w for agents: ~w ~n", [Moves, Agents]),
-        agents_do_moves(Agents, Moves),
-        attempt_agent_exit(Agents),
-        my_agents(NewAgents),
-        exit_agents(NewAgents, NewPaths)
-    ->  true
-    ;  
-        format("Some agents got stuck due to equal length paths! Retrying for them ~n"), my_agents(NewAgents), pathfinding_phase(NewAgents) 
-    ).
+    Paths \= [],
+    extract_moves(Agents, Paths, Moves, NewPaths),
+    agents_do_moves(Agents, Moves),
+    attempt_agent_exit(Agents),
+    my_agents(NewAgents),
+    exit_agents(NewAgents, NewPaths).
+exit_agents(_, _) :- my_agents(NewAgents), NewAgents \= [], pathfinding_phase(NewAgents).
     
 extract_moves(_, [], [], []).
-extract_moves([A|As], [[]|Rest], Moves, NewPaths) :- extract_moves(As, Rest, Moves, NewPaths).
-extract_moves([A|As], [[Move|Path]|Rest], [Move|Moves], [Path|NewPaths]) :- extract_moves(As, Rest, Moves, NewPaths).
+extract_moves([_|As], [[]|Rest], Moves, NewPaths) :- extract_moves(As, Rest, Moves, NewPaths).
+extract_moves([_|As], [[Move|Path]|Rest], [Move|Moves], [Path|NewPaths]) :- extract_moves(As, Rest, Moves, NewPaths).
 
 attempt_agent_exit([]).
 attempt_agent_exit([A|As]) :-
