@@ -132,7 +132,7 @@ try_stations_no_return([_-_|Rest], Pos, Energy, Station, Path, Cost) :- try_stat
 
 exhaust_oracles([], CurrentActors, ActorName) :- format("No more oracles to attempt. Final list of actors: ~w~n", [CurrentActors]), (length(CurrentActors, 1), CurrentActors=[ActorName] ; ActorName=unknown).
 exhaust_oracles(Oracles, CurrentActors, ActorName) :-
-    my_agent(A), get_agent_position(A, Pos), get_agent_energy(A, Energy),
+    my_agent(A), get_agent_position(A, Pos), get_agent_energy(A, Energy), ailp_grid_size(N),
     sort_oracles_by_distance(Oracles, Pos, [Oracle-_|Rest]),
     (
         heuristic(find(Oracle), Pos, F), solve_task_astar(find(Oracle), [[F, Pos, []]], [], Path), length(Path, PathCost), QueryCost is ceiling(((N*N)/4)/10), Cost is PathCost+QueryCost, Energy>=Cost,
