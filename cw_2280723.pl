@@ -4,16 +4,19 @@ solve_task(Task,Cost) :-
     get_agent_energy(A, Energy),
     (
         can_reach_target(Task, P, Path, PathCost),
-        Energy >= PathCost,
-        format("Energy available: ~w, Cost to target: ~w~n", [Energy, PathCost]),
-        agent_do_moves(A, Path), length(Path, Cost)
-    ;
-        format("Energy insufficient to reach target or target unreachable. Energy: ~w~n", [Energy]),
-        \+ can_reach_target(Task, P, _, _),
-        find_best_charging_station(Task, P, Energy, Station, ChargePath, TargetPath, Cost),
-        agent_do_moves(A, ChargePath),
-        agent_topup_energy(A, Station),
-        agent_do_moves(A, TargetPath)
+        (
+            Energy >= PathCost,
+            format("Energy available: ~w, Cost to target: ~w~n", [Energy, PathCost]),
+            agent_do_moves(A, Path), length(Path, Cost)
+        ;
+            find_best_charging_station(Task, P, Energy, Station, ChargePath, TargetPath, Cost),
+            agent_do_moves(A, ChargePath),
+            agent_topup_energy(A, Station),
+            agent_do_moves(A, TargetPath)
+        )
+        ;
+        format("Target unreachable. Energy: ~w~n", [Energy]),
+        fail
     ).
     %solve_task_dfs(Task,[P],[P|Path]), !,
     %solve_task_bfs(Task, [[P]], [], Pathbfs),
@@ -27,10 +30,7 @@ find_all_stations(Stations) :-
 can_reach_target(Task, StartPos, Path, Cost) :-
     heuristic(Task, StartPos, F),
     solve_task_astar(Task, [[F, StartPos, []]], [], Path),
-    length(Path, Cost),
-    my_agent(A),
-    get_agent_energy(A, Energy),
-    Energy>=Cost.
+    length(Path, Cost).
 
 find_best_charging_station(Task, StartPos, EnergyAvailable, Station, ChargePath, TargetPath, Cost) :-
     find_all_stations(Stations),
@@ -38,13 +38,17 @@ find_best_charging_station(Task, StartPos, EnergyAvailable, Station, ChargePath,
     get_best_station(Task, Stations, StartPos, EnergyAvailable, Station, ChargePath, TargetPath, Cost).
 
 get_best_station(Task, Stations, StartPos, EnergyAvailable, BestStation, BestChargePath, BestTargetPath, BestCost) :-
-    findall([Cost, Object, ChargePath, TargetPath], (member(Object-StationPos, Stations), heuristic(find(Object), StartPos, F), solve_task_astar(find(Object), [[F, StartPos, []]], [], ChargePath), length(ChargePath, ChargeCost),
+    findall([Cost, Object, ChargePath, TargetPath], (member(Object-_, Stations), heuristic(find(Object), StartPos, F), solve_task_astar(find(Object), [[F, StartPos, []]], [], ChargePath), length(ChargePath, ChargeCost), EnergyAvailable>=ChargeCost, format("This costs ~w and we have ~w ~n", [ChargeCost, EnergyAvailable]),
         get_final_position(ChargePath, AgentStationPos), heuristic(Task, AgentStationPos, F1), solve_task_astar(Task, [[F1, AgentStationPos, []]], [], TargetPath), length(TargetPath, TargetCost),
-    Cost is ChargeCost+TargetCost, EnergyAvailable>=ChargeCost), Costs),
-    sort(Costs, [[BestCost, BestStation, BestChargePath, BestTargetPath]|_]),
+    Cost is ChargeCost+TargetCost), Costs),
+    sort(Costs, [[BestCost, BestStation, BestChargePath, BestTargetPath]|_]).
 
 get_final_position([Pos], Pos).
 get_final_position([_|Rest], Pos) :- get_final_position(Rest, Pos).
+
+% Although achieved theoretically does this, this is a failsafe
+solve_task_astar(find(Object), [[_, Pos|Path]|_],_, Solution) :-
+    map_adjacent(Pos, _, Object), reverse([Pos|Path], Solution).
 
 solve_task_astar(Task, [[_, Pos|Path]|_],_, RPath) :-
 	achieved(Task, Pos),
@@ -63,22 +67,6 @@ heuristic(go(TargetPos), Pos, H) :-
     map_distance(Pos, TargetPos, H).
 
 heuristic(find(_), _, 0).
-
-% Calculate the path required to achieve a Task
-solve_task_dfs(Task,[P|Ps],Path) :-
-    achieved(Task,P), reverse([P|Ps],Path)
-    ;
-    map_adjacent(P,Q,empty), \+ member(Q,Ps),
-    solve_task_dfs(Task,[Q,P|Ps],Path).
-
-solve_task_bfs(Task, [[Pos|Path]|_], _, RPath) :-
-	achieved(Task, Pos),
-	reverse([Pos|Path], [_|RPath]).
-
-solve_task_bfs(Task, [[Pos|Path]|Rest], Visited, Solution) :-
-	findall([NewPos, Pos|Path], (map_adjacent(Pos, NewPos, empty), \+ member(NewPos, Visited), \+ member([NewPos|_], Rest)), Children),
-	append(Rest, Children, N),
-	solve_task_bfs(Task,N, [Pos|Visited], Solution).
 
 % True if the Task is achieved with the agent at Pos
 achieved(Task,Pos) :- 
