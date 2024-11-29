@@ -6,22 +6,17 @@ solve_task(Task,Cost) :-
         can_reach_target(Task, P, Path, PathCost),
         (
             Energy >= PathCost,
-            format("Energy available: ~w, Cost to target: ~w~n", [Energy, PathCost]),
             agent_do_moves(A, Path), length(Path, Cost)
         ;
+            format("Not enough energy, getting path to charging station ~n"),
             find_best_charging_station(Task, P, Energy, Station, ChargePath, TargetPath, Cost),
             agent_do_moves(A, ChargePath),
             agent_topup_energy(A, Station),
             agent_do_moves(A, TargetPath)
         )
         ;
-        format("Target unreachable. Energy: ~w~n", [Energy]),
         fail
     ).
-    %solve_task_dfs(Task,[P],[P|Path]), !,
-    %solve_task_bfs(Task, [[P]], [], Pathbfs),
-    %heuristic(Task, P, F), solve_task_astar(Task, [[F, P, []]], [], Path),
-    %agent_do_moves(A,Path), length(Path,Cost).
 
 find_all_stations(Stations) :-
     ailp_grid_size(N),
@@ -35,20 +30,27 @@ can_reach_target(Task, StartPos, Path, Cost) :-
 find_best_charging_station(Task, StartPos, EnergyAvailable, Station, ChargePath, TargetPath, Cost) :-
     find_all_stations(Stations),
     Stations \= [],
-    get_best_station(Task, Stations, StartPos, EnergyAvailable, Station, ChargePath, TargetPath, Cost).
+    get_target_position(Task, StartPos, TargetPos),
+    get_best_station(Task, Stations, StartPos, TargetPos, EnergyAvailable, Station, ChargePath, TargetPath, Cost).
 
-get_best_station(Task, Stations, StartPos, EnergyAvailable, BestStation, BestChargePath, BestTargetPath, BestCost) :-
-    findall([Cost, Object, ChargePath, TargetPath], (member(Object-_, Stations), heuristic(find(Object), StartPos, F), solve_task_astar(find(Object), [[F, StartPos, []]], [], ChargePath), length(ChargePath, ChargeCost), EnergyAvailable>=ChargeCost, format("This costs ~w and we have ~w ~n", [ChargeCost, EnergyAvailable]),
-        get_final_position(ChargePath, AgentStationPos), heuristic(Task, AgentStationPos, F1), solve_task_astar(Task, [[F1, AgentStationPos, []]], [], TargetPath), length(TargetPath, TargetCost),
-    Cost is ChargeCost+TargetCost), Costs),
-    sort(Costs, [[BestCost, BestStation, BestChargePath, BestTargetPath]|_]).
+get_target_position(go(Pos), _, Pos).
+get_target_position(Task, StartPos, Pos) :-
+    can_reach_target(Task, StartPos, Path, _), get_final_position(Path, Pos).
+
+get_best_station(Task, Stations, StartPos, TargetPos, EnergyAvailable, BestStation, BestChargePath, BestTargetPath, BestCost) :-
+    findall(Cost-(Station-StationPos), (member(Station-StationPos, Stations), map_distance(StartPos, StationPos, H1), map_distance(StationPos, TargetPos, H2), Cost is H1+H2), Costs),
+    sort(Costs, SortedPairs), pairs_values(SortedPairs, SortedStations),
+    try_stations(Task, SortedStations, StartPos, EnergyAvailable, BestStation, BestChargePath, BestTargetPath, BestCost). 
+
+try_stations(_, [], _, _, _, _, _, _) :- fail.
+try_stations(Task, [Station-_|_], Pos, Energy, Station, ChargePath, TargetPath, Cost) :-
+    heuristic(find(Station), Pos, F), solve_task_astar(find(Station), [[F, Pos, []]], [], ChargePath), length(ChargePath, StationCost), Energy>=StationCost,
+    get_final_position(ChargePath, StationPos), heuristic(Task, StationPos, F1), solve_task_astar(Task, [[F1, StationPos, []]], [], TargetPath), length(TargetPath, TargetCost),
+    Cost is StationCost+TargetCost.
+try_stations(Task, [_-_|Rest], Pos, Energy, Station, ChargePath, TargetPath, Cost) :- try_stations(Task, Rest, Pos, Energy, Station, ChargePath, TargetPath, Cost).
 
 get_final_position([Pos], Pos).
 get_final_position([_|Rest], Pos) :- get_final_position(Rest, Pos).
-
-% Although achieved theoretically does this, this is a failsafe
-solve_task_astar(find(Object), [[_, Pos|Path]|_],_, Solution) :-
-    map_adjacent(Pos, _, Object), reverse([Pos|Path], Solution).
 
 solve_task_astar(Task, [[_, Pos|Path]|_],_, RPath) :-
 	achieved(Task, Pos),
